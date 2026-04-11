@@ -6,12 +6,29 @@ build-backend = "hatchling.build"
 name = "archit-app"
 version = "0.1.0"
 description = "A general-purpose, extensible floorplan library for architects and developers."
+readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
+keywords = ["floorplan", "architecture", "building", "geometry", "BIM"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: GIS",
+]
 dependencies = [
     "pydantic>=2.0,<3",
     "shapely>=2.0,<3",
     "numpy>=1.26",
 ]
+
+[project.urls]
+Homepage = "https://github.com/archit-app/archit-app"
+Repository = "https://github.com/archit-app/archit-app"
+Issues = "https://github.com/archit-app/archit-app/issues"
 
 [project.optional-dependencies]
 dev = [
