@@ -1,0 +1,36 @@
+<svg id="llight" viewBox="0 0 540 175" width="500" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>@import url('https://fonts.googleapis.com/css2?family=Syne:wght@800&amp;family=JetBrains+Mono&amp;display=swap');</style>
+        <pattern id="g2" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M9 0H0V9" fill="none" stroke="#2563EB" stroke-width="0.45"/></pattern>
+        <clipPath id="c2">
+          <polygon points="57,103 101,103 117,155 41,155"/>
+          <polygon points="121,103 165,103 181,155 105,155"/>
+        </clipPath>
+      </defs>
+      <polygon points="57,103 101,103 117,155 41,155" fill="url(#g2)" clip-path="url(#c2)" opacity="0.28"/>
+      <polygon points="121,103 165,103 181,155 105,155" fill="url(#g2)" clip-path="url(#c2)" opacity="0.28"/>
+      <line x1="79" y1="16" x2="41" y2="155" stroke="#1E293B" stroke-width="3.4" stroke-linecap="round"/>
+      <line x1="79" y1="16" x2="105" y2="155" stroke="#1E293B" stroke-width="3.4" stroke-linecap="round"/>
+      <line x1="143" y1="16" x2="105" y2="155" stroke="#1E293B" stroke-width="3.4" stroke-linecap="round"/>
+      <line x1="143" y1="16" x2="181" y2="155" stroke="#1E293B" stroke-width="3.4" stroke-linecap="round"/>
+      <line x1="41" y1="155" x2="181" y2="155" stroke="#1E293B" stroke-width="2.8" stroke-linecap="round"/>
+      <line x1="57" y1="103" x2="101" y2="103" stroke="#2563EB" stroke-width="2.8" stroke-linecap="round"/>
+      <line x1="121" y1="103" x2="165" y2="103" stroke="#2563EB" stroke-width="2.8" stroke-linecap="round"/>
+      <line x1="101" y1="103" x2="121" y2="103" stroke="#2563EB" stroke-width="0.9" stroke-dasharray="3,4" opacity="0.45"/>
+      <line x1="79" y1="103" x2="79" y2="155" stroke="#2563EB" stroke-width="1.4" opacity="0.6"/>
+      <line x1="143" y1="103" x2="143" y2="155" stroke="#2563EB" stroke-width="1.4" opacity="0.6"/>
+      <line x1="44" y1="129" x2="76" y2="129" stroke="#2563EB" stroke-width="0.9" opacity="0.45"/>
+      <line x1="82" y1="129" x2="102" y2="129" stroke="#2563EB" stroke-width="0.9" opacity="0.45"/>
+      <line x1="108" y1="129" x2="140" y2="129" stroke="#2563EB" stroke-width="0.9" opacity="0.45"/>
+      <line x1="146" y1="129" x2="178" y2="129" stroke="#2563EB" stroke-width="0.9" opacity="0.45"/>
+      <line x1="57" y1="96" x2="57" y2="110" stroke="#2563EB" stroke-width="1.4" opacity="0.5"/>
+      <line x1="101" y1="96" x2="101" y2="110" stroke="#2563EB" stroke-width="1.4" opacity="0.5"/>
+      <line x1="121" y1="96" x2="121" y2="110" stroke="#2563EB" stroke-width="1.4" opacity="0.5"/>
+      <line x1="165" y1="96" x2="165" y2="110" stroke="#2563EB" stroke-width="1.4" opacity="0.5"/>
+      <circle cx="79" cy="16" r="4.5" fill="#D97706"/>
+      <circle cx="79" cy="16" r="9" fill="none" stroke="#D97706" stroke-width="1" opacity="0.35"/>
+      <circle cx="143" cy="16" r="4.5" fill="#D97706"/>
+      <circle cx="143" cy="16" r="9" fill="none" stroke="#D97706" stroke-width="1" opacity="0.35"/>
+      <text x="212" y="108" font-family="Syne,sans-serif" font-size="62" font-weight="800" fill="#1E293B" letter-spacing="-1">archit</text>
+      <text x="215" y="144" font-family="'JetBrains Mono',monospace" font-size="19" fill="#2563EB" letter-spacing="5">.app</text>
+    </svg>
