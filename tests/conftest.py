@@ -7,7 +7,7 @@ fixtures before being merged.
 
 import pytest
 
-from floorplan import (
+from archit_app import (
     WORLD,
     Building,
     BuildingMetadata,

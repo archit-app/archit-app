@@ -1,12 +1,12 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="logo/archit-app-dark.svg">
-  <img src="logo/archit-app-light.svg" alt="floorplan" width="360">
+  <img src="logo/archit-app-light.svg" alt="archit-app" width="360">
 </picture>
 
 A general-purpose, extensible Python library for architectural floorplan design and analysis.
 
 ```
-pip install floorplan
+pip install archit-app
 ```
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -16,7 +16,7 @@ pip install floorplan
 
 ## Overview
 
-`floorplan` provides a clean, layered data model for working with architectural floorplans in Python. It supports non-Manhattan shapes, curve walls, multi-level buildings, and exports to SVG, DXF, GeoJSON, and a canonical JSON format — all built on immutable, type-safe objects.
+`archit_app` provides a clean, layered data model for working with architectural floorplans in Python. It supports non-Manhattan shapes, curve walls, multi-level buildings, and exports to SVG, DXF, GeoJSON, and a canonical JSON format — all built on immutable, type-safe objects.
 
 **Key features:**
 
@@ -32,31 +32,31 @@ pip install floorplan
 ## Installation
 
 ```bash
-pip install floorplan
+pip install archit-app
 ```
 
 For DXF and SVG export support:
 
 ```bash
-pip install "floorplan[io]"
+pip install "archit-app[io]"
 ```
 
 For image and panorama support (coming in a future release):
 
 ```bash
-pip install "floorplan[image]"
+pip install "archit-app[image]"
 ```
 
 For graph-based analysis (coming in a future release):
 
 ```bash
-pip install "floorplan[analysis]"
+pip install "archit-app[analysis]"
 ```
 
 For all optional dependencies:
 
 ```bash
-pip install "floorplan[io,image,analysis]"
+pip install "archit-app[io,image,analysis]"
 ```
 
 **Requirements:** Python 3.11+, pydantic ≥ 2.0, shapely ≥ 2.0, numpy ≥ 1.26
@@ -66,7 +66,7 @@ pip install "floorplan[io,image,analysis]"
 ## Quick Start
 
 ```python
-from floorplan import (
+from archit_app import (
     Wall, Room, Level, Building, BuildingMetadata,
     Opening, Column, Point2D, Polygon2D, WORLD,
 )
@@ -111,7 +111,7 @@ print(building)
 ### Export to SVG
 
 ```python
-from floorplan.io.svg import level_to_svg, save_level_svg
+from archit_app.io.svg import level_to_svg, save_level_svg
 
 svg_str = level_to_svg(ground, pixels_per_meter=50)
 save_level_svg(ground, "ground_floor.svg", pixels_per_meter=50)
@@ -120,16 +120,16 @@ save_level_svg(ground, "ground_floor.svg", pixels_per_meter=50)
 ### Export to JSON and reload
 
 ```python
-from floorplan.io.json_schema import save_building, load_building
+from archit_app.io.json_schema import save_building, load_building
 
-save_building(building, "my_house.floorplan.json")
-restored = load_building("my_house.floorplan.json")
+save_building(building, "my_house.archit_app.json")
+restored = load_building("my_house.archit_app.json")
 ```
 
 ### Export to GeoJSON
 
 ```python
-from floorplan.io.geojson import level_to_geojson
+from archit_app.io.geojson import level_to_geojson
 import json
 
 fc = level_to_geojson(ground)
@@ -139,8 +139,8 @@ print(json.dumps(fc, indent=2))
 ### Export to DXF
 
 ```python
-# Requires: pip install "floorplan[io]"
-from floorplan.io.dxf import save_building_dxf
+# Requires: pip install "archit-app[io]"
+from archit_app.io.dxf import save_building_dxf
 
 save_building_dxf(building, "my_house.dxf")
 ```
@@ -149,7 +149,7 @@ save_building_dxf(building, "my_house.dxf")
 
 ## Coordinate System
 
-`floorplan` uses a **Y-up, meters** world coordinate system — the standard for architecture. Screen and image layers are Y-down; the library handles the flip at export time so your geometry code never sees it.
+`archit_app` uses a **Y-up, meters** world coordinate system — the standard for architecture. Screen and image layers are Y-down; the library handles the flip at export time so your geometry code never sees it.
 
 | Space    | Origin    | Y direction | Unit   | Use                       |
 |----------|-----------|-------------|--------|---------------------------|
@@ -167,7 +167,7 @@ Every `Point2D` and `Vector2D` carries its CRS. Arithmetic between mismatched sp
 The library is structured in layers:
 
 ```
-floorplan/
+archit_app/
 ├── geometry/     Layer 1 — CRS, points, vectors, transforms, polygons, curves
 ├── elements/     Layer 2 — Wall, Room, Opening, Column (all Element subclasses)
 ├── building/     Layer 3 — Level, Building, SiteContext

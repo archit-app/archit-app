@@ -1,13 +1,13 @@
 # API Reference — I/O
 
-`floorplan` supports four interchange formats. All exporters work at the `Building` and `Level` level.
+`archit_app` supports four interchange formats. All exporters work at the `Building` and `Level` level.
 
 ---
 
 ## JSON (canonical format)
 
 ```python
-from floorplan.io.json_schema import (
+from archit_app.io.json_schema import (
     building_to_json, building_from_json,
     building_to_dict, building_from_dict,
     save_building, load_building,
@@ -18,7 +18,7 @@ The canonical JSON format is:
 
 - Human-readable (pretty-printed by default)
 - Fully round-trippable — serialize → deserialize → identical object graph
-- Forward-compatible via a `_floorplan_version` field
+- Forward-compatible via a `_archit_app_version` field
 
 ### Functions
 
@@ -48,25 +48,25 @@ Reconstruct a `Building` from a dict (as produced by `building_to_dict`).
 
 #### `save_building(building, path, indent=2) → None`
 
-Write a `Building` to a file. The conventional extension is `.floorplan.json`.
+Write a `Building` to a file. The conventional extension is `.archit_app.json`.
 
 ```python
-save_building(building, "project.floorplan.json")
+save_building(building, "project.archit_app.json")
 ```
 
 #### `load_building(path) → Building`
 
-Read a `Building` from a `.floorplan.json` file.
+Read a `Building` from a `.archit_app.json` file.
 
 ```python
-building = load_building("project.floorplan.json")
+building = load_building("project.archit_app.json")
 ```
 
 ### File format overview
 
 ```json
 {
-  "_floorplan_version": "0.1.0",
+  "_archit_app_version": "0.1.0",
   "metadata": {
     "name": "My House",
     "project_number": "",
@@ -97,7 +97,7 @@ All UUIDs are serialized as strings. All `Transform2D` objects are stored as `[[
 ## SVG
 
 ```python
-from floorplan.io.svg import (
+from archit_app.io.svg import (
     level_to_svg,
     building_to_svg_pages,
     save_level_svg,
@@ -172,7 +172,7 @@ Default palette keys: `room_fill`, `room_stroke`, `wall_fill`, `wall_stroke`, `c
 **Example:**
 
 ```python
-from floorplan.io.svg import save_building_svgs
+from archit_app.io.svg import save_building_svgs
 
 paths = save_building_svgs(building, directory="output/svgs", pixels_per_meter=80)
 for p in paths:
@@ -184,7 +184,7 @@ for p in paths:
 ## GeoJSON
 
 ```python
-from floorplan.io.geojson import (
+from archit_app.io.geojson import (
     level_to_geojson,
     building_to_geojson,
     level_to_geojson_string,
@@ -219,7 +219,7 @@ Convenience wrappers that return a JSON string instead of a dict.
 **Example:**
 
 ```python
-from floorplan.io.geojson import level_to_geojson
+from archit_app.io.geojson import level_to_geojson
 import json
 
 fc = level_to_geojson(ground_level)
@@ -231,14 +231,14 @@ print(json.dumps(fc, indent=2))
 ## DXF
 
 ```python
-from floorplan.io.dxf import (
+from archit_app.io.dxf import (
     building_to_dxf,
     level_to_dxf,
     save_building_dxf,
 )
 ```
 
-> **Requires:** `pip install "floorplan[io]"` (installs `ezdxf ≥ 1.3`)
+> **Requires:** `pip install "archit-app[io]"` (installs `ezdxf ≥ 1.3`)
 
 Exports to AutoCAD DXF format via [ezdxf](https://ezdxf.readthedocs.io/). Elements are placed on named DXF layers for easy import into CAD software.
 
@@ -275,7 +275,7 @@ save_building_dxf(building: Building, path: str) -> None
 Convenience function that calls `building_to_dxf` and saves the result.
 
 ```python
-from floorplan.io.dxf import save_building_dxf
+from archit_app.io.dxf import save_building_dxf
 
 save_building_dxf(building, "project.dxf")
 ```

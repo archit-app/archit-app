@@ -1,6 +1,6 @@
 import pytest
 
-from floorplan import Wall, WallType, Opening, OpeningKind, Point2D, Polygon2D, WORLD
+from archit_app import Wall, WallType, Opening, OpeningKind, Point2D, Polygon2D, WORLD
 
 
 def test_wall_straight_factory():

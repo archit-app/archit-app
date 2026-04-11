@@ -1,6 +1,6 @@
 import pytest
 
-from floorplan import WORLD, SCREEN, Point2D, Point3D, Vector2D, CRSMismatchError, Transform2D
+from archit_app import WORLD, SCREEN, Point2D, Point3D, Vector2D, CRSMismatchError, Transform2D
 
 
 def test_point_add_vector():
@@ -77,7 +77,7 @@ def test_point_as_array():
 
 
 def test_point3d_subtract():
-    from floorplan import Vector3D
+    from archit_app import Vector3D
     p1 = Point3D(x=3.0, y=4.0, z=5.0, crs=WORLD)
     p2 = Point3D(x=1.0, y=1.0, z=1.0, crs=WORLD)
     v = p1 - p2

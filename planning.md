@@ -210,7 +210,7 @@ class DoubleSkinWall(Wall):
 ## Suggested Package Structure
 
 ```
-floorplan/
+archit_app/
 ├── geometry/         # pure math, zero arch semantics
 ├── elements/         # Wall, Room, Door, Column…
 ├── building/         # Level, Building, Site
@@ -450,12 +450,12 @@ This lets you click a point on a panorama photo and get a world-space coordinate
 
 ```python
 # Make the common case frictionless
-from floorplan.geometry.crs import (
+from archit_app.geometry.crs import (
     CoordinateSystem, CoordinateConverter,
     WORLD, SCREEN, IMAGE, WGS84
 )
-from floorplan.geometry.point import Point2D, Point3D
-from floorplan.geometry.transform import Transform2D
+from archit_app.geometry.point import Point2D, Point3D
+from archit_app.geometry.transform import Transform2D
 ```
 
 Users should never have to think about CRS unless they're doing something unusual. The defaults should just work.

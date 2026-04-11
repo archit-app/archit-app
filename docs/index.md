@@ -1,13 +1,13 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../logo/archit-app-dark.svg">
-  <img src="../logo/archit-app-light.svg" alt="floorplan" width="320">
+  <img src="../logo/archit-app-light.svg" alt="archit-app" width="320">
 </picture>
 
-# floorplan Documentation
+# archit_app Documentation
 
-Welcome to the `floorplan` library documentation.
+Welcome to the `archit_app` library documentation.
 
-`floorplan` is a general-purpose, extensible Python library for architectural floorplan design and analysis. It provides a clean, layered data model with full support for non-Manhattan geometry, multi-level buildings, and standard interchange formats.
+`archit_app` is a general-purpose, extensible Python library for architectural floorplan design and analysis. It provides a clean, layered data model with full support for non-Manhattan geometry, multi-level buildings, and standard interchange formats.
 
 ## Contents
 

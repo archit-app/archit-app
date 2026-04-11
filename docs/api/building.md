@@ -1,7 +1,7 @@
 # API Reference — Building
 
 ```python
-from floorplan import (
+from archit_app import (
     Level,
     Building, BuildingMetadata,
     SiteContext,
@@ -52,7 +52,7 @@ class Level(BaseModel, frozen=True):
 **Example:**
 
 ```python
-from floorplan import Level, Wall, Room, Polygon2D, WORLD
+from archit_app import Level, Wall, Room, Polygon2D, WORLD
 
 level = Level(index=0, elevation=0.0, floor_height=3.0, name="Ground Floor")
 
@@ -107,7 +107,7 @@ class Building(BaseModel, frozen=True):
 **Example:**
 
 ```python
-from floorplan import Building, BuildingMetadata, SiteContext, Polygon2D, WORLD
+from archit_app import Building, BuildingMetadata, SiteContext, Polygon2D, WORLD
 
 site = SiteContext(
     boundary=Polygon2D.rectangle(-5, -5, 20, 18, crs=WORLD),
@@ -165,7 +165,7 @@ class SiteContext(BaseModel, frozen=True):
 **Example:**
 
 ```python
-from floorplan import SiteContext, Polygon2D, WORLD
+from archit_app import SiteContext, Polygon2D, WORLD
 
 site = SiteContext(
     boundary=Polygon2D.rectangle(-2, -2, 14, 12, crs=WORLD),

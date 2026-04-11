@@ -2,7 +2,7 @@
 
 ## Coordinate systems
 
-`floorplan` uses a **Y-up, meters** world coordinate system — the standard architectural convention. This is intentional: architects think in Y-up. Screen and image coordinate systems are Y-down; the library handles the flip at export boundaries so geometry code never needs to think about it.
+`archit_app` uses a **Y-up, meters** world coordinate system — the standard architectural convention. This is intentional: architects think in Y-up. Screen and image coordinate systems are Y-down; the library handles the flip at export boundaries so geometry code never needs to think about it.
 
 ### The five spaces
 
@@ -16,7 +16,7 @@
 Import these singletons directly:
 
 ```python
-from floorplan import WORLD, SCREEN, IMAGE, WGS84
+from archit_app import WORLD, SCREEN, IMAGE, WGS84
 ```
 
 ### CRS tagging
@@ -24,7 +24,7 @@ from floorplan import WORLD, SCREEN, IMAGE, WGS84
 Every `Point2D` and `Vector2D` carries its `CoordinateSystem`. Any arithmetic between two objects in different spaces raises `CRSMismatchError` immediately — before any wrong-answer bugs can propagate silently.
 
 ```python
-from floorplan import Point2D, WORLD, SCREEN, CRSMismatchError
+from archit_app import Point2D, WORLD, SCREEN, CRSMismatchError
 
 p_world  = Point2D(x=1.0, y=2.0, crs=WORLD)
 p_screen = Point2D(x=100, y=200, crs=SCREEN)
@@ -39,7 +39,7 @@ The error message tells you exactly which spaces clashed and that you need to co
 You can create your own CRS for local or project-specific spaces:
 
 ```python
-from floorplan import CoordinateSystem, LengthUnit, YDirection
+from archit_app import CoordinateSystem, LengthUnit, YDirection
 
 LOCAL = CoordinateSystem(
     name="apartment_3B",
@@ -121,7 +121,7 @@ wall = wall.on_layer("structural")
 `Transform2D` wraps a 3×3 homogeneous matrix for 2D affine transforms. It is immutable and composed with `@`:
 
 ```python
-from floorplan import Transform2D
+from archit_app import Transform2D
 import math
 
 t = (
@@ -131,7 +131,7 @@ t = (
 )
 
 # Apply to a Point2D
-from floorplan import Point2D, WORLD
+from archit_app import Point2D, WORLD
 p = Point2D(x=1.0, y=0.0, crs=WORLD)
 p2 = p.transformed(t)
 ```
@@ -165,7 +165,7 @@ The `Wall.straight()` factory automatically builds the correct `Polygon2D` from 
 - Complex wall shapes with openings (for SVG export)
 
 ```python
-from floorplan import Polygon2D, Point2D, WORLD
+from archit_app import Polygon2D, Point2D, WORLD
 
 # A room with a service shaft void
 outer = Polygon2D.rectangle(0, 0, 10, 8, crs=WORLD)
@@ -183,7 +183,7 @@ print(f"Gross area: {room.gross_area:.1f} m²")  # 80.0
 All values are stored in **meters** internally. Import and export functions accept a `unit` parameter (planned for future releases). Never store values in other units inside the model — convert at the boundary.
 
 ```python
-from floorplan import LengthUnit
+from archit_app import LengthUnit
 
 feet_value = 10.0
 meters = LengthUnit.FEET.to_meters(feet_value)   # 3.048

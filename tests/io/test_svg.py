@@ -2,8 +2,8 @@
 
 import pytest
 
-from floorplan import Building, Level, WORLD, Polygon2D, Room
-from floorplan.io.svg import level_to_svg, building_to_svg_pages
+from archit_app import Building, Level, WORLD, Polygon2D, Room
+from archit_app.io.svg import level_to_svg, building_to_svg_pages
 
 
 def test_level_to_svg_returns_string(single_level_building):

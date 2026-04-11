@@ -7,8 +7,8 @@ Contributions are welcome — bug reports, documentation improvements, new featu
 ## Development setup
 
 ```bash
-git clone https://github.com/your-org/floorplan.git
-cd floorplan
+git clone https://github.com/your-org/archit_app.git
+cd archit-app
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev,io,image,analysis]"
@@ -27,7 +27,7 @@ pytest
 With coverage:
 
 ```bash
-pytest --cov=floorplan --cov-report=term-missing
+pytest --cov=archit_app --cov-report=term-missing
 ```
 
 The test suite is organized to mirror the package structure:
@@ -45,8 +45,8 @@ tests/
 ## Code style
 
 ```bash
-ruff check floorplan tests
-ruff format floorplan tests
+ruff check archit_app tests
+ruff format archit_app tests
 ```
 
 Configuration is in `pyproject.toml`. Line length is 100. The linting rules are `E`, `F`, and `I` (errors, pyflakes, isort).
@@ -73,19 +73,19 @@ Before contributing code, read [Core Concepts](concepts.md). The key rules:
 
 ## Adding a new element type
 
-1. Create `floorplan/elements/my_element.py` inheriting from `Element`.
+1. Create `archit_app/elements/my_element.py` inheriting from `Element`.
 2. Add factories and computed properties following the pattern in `wall.py` and `room.py`.
-3. Export from `floorplan/elements/__init__.py` and `floorplan/__init__.py`.
-4. Add serialization to `floorplan/io/json_schema.py` (`_ser_*` / `_des_*` functions and integration into `_ser_level` / `_des_level`).
-5. Add rendering to `floorplan/io/svg.py`.
-6. Add GeoJSON export to `floorplan/io/geojson.py`.
+3. Export from `archit_app/elements/__init__.py` and `archit_app/__init__.py`.
+4. Add serialization to `archit_app/io/json_schema.py` (`_ser_*` / `_des_*` functions and integration into `_ser_level` / `_des_level`).
+5. Add rendering to `archit_app/io/svg.py`.
+6. Add GeoJSON export to `archit_app/io/geojson.py`.
 7. Write tests in `tests/elements/test_my_element.py` and `tests/io/` covering the round-trip.
 
 ---
 
 ## Adding an I/O format
 
-1. Create `floorplan/io/my_format.py`.
+1. Create `archit_app/io/my_format.py`.
 2. Document the optional dependency in `pyproject.toml` under `[project.optional-dependencies]`.
 3. Guard the import with a clear `ImportError` if the dependency is missing:
    ```python
@@ -93,7 +93,7 @@ Before contributing code, read [Core Concepts](concepts.md). The key rules:
        import my_lib
    except ImportError as e:
        raise ImportError(
-           "my_format export requires: pip install 'floorplan[my_extra]'"
+           "my_format export requires: pip install 'archit-app[my_extra]'"
        ) from e
    ```
 4. Write tests that skip gracefully if the optional dependency is not installed:

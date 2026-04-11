@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "floorplan"
+name = "archit-app"
 version = "0.1.0"
 description = "A general-purpose, extensible floorplan library for architects and developers."
 requires-python = ">=3.11"
@@ -34,7 +34,7 @@ analysis = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["floorplan"]
+packages = ["archit_app"]
 
 [tool.ruff]
 line-length = 100

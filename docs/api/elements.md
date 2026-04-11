@@ -1,7 +1,7 @@
 # API Reference — Elements
 
 ```python
-from floorplan import (
+from archit_app import (
     Element,
     Wall, WallType,
     Room,
@@ -132,7 +132,7 @@ class Room(Element):
 **Example:**
 
 ```python
-from floorplan import Room, Polygon2D, WORLD
+from archit_app import Room, Polygon2D, WORLD
 
 boundary = Polygon2D.rectangle(0, 0, 6, 4, crs=WORLD)
 shaft    = Polygon2D.rectangle(2, 1, 1, 1, crs=WORLD)

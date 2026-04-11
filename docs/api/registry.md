@@ -1,11 +1,11 @@
 # API Reference — Registry
 
 ```python
-from floorplan import register, get, list_registered, get_all
-from floorplan.core.registry import register, get, list_registered, get_all
+from archit_app import register, get, list_registered, get_all
+from archit_app.core.registry import register, get, list_registered, get_all
 ```
 
-The registry is a lightweight plugin system that lets third-party code extend `floorplan` without modifying the core library. Categories are arbitrary strings; the built-in convention is `"exporter"`, `"wall_type"`, `"renderer"`, etc.
+The registry is a lightweight plugin system that lets third-party code extend `archit_app` without modifying the core library. Categories are arbitrary strings; the built-in convention is `"exporter"`, `"wall_type"`, `"renderer"`, etc.
 
 ---
 
@@ -20,8 +20,8 @@ def register(category: str, name: str)
 Decorator that registers a class under `(category, name)`.
 
 ```python
-from floorplan import register
-from floorplan.elements.wall import Wall
+from archit_app import register
+from archit_app.elements.wall import Wall
 
 @register("wall_type", "double_skin")
 class DoubleSkinWall(Wall):
@@ -39,7 +39,7 @@ def get(category: str, name: str) -> type
 Retrieve a registered class. Raises `KeyError` if not found.
 
 ```python
-from floorplan import get
+from archit_app import get
 
 WallClass = get("wall_type", "double_skin")
 wall = WallClass(
@@ -59,7 +59,7 @@ def list_registered(category: str) -> list[str]
 Return all registered names for a category.
 
 ```python
-from floorplan import list_registered
+from archit_app import list_registered
 
 print(list_registered("exporter"))
 # ['svg', 'dxf', 'geojson', 'my_custom_exporter']
@@ -77,13 +77,13 @@ Return the full `{name: class}` mapping for a category.
 
 ## Building a plugin
 
-A plugin is any Python package that imports `floorplan` and calls `@register`. The registration happens at import time, so loading the plugin package is sufficient.
+A plugin is any Python package that imports `archit_app` and calls `@register`. The registration happens at import time, so loading the plugin package is sufficient.
 
 **Example plugin (`my_fp_plugin/__init__.py`):**
 
 ```python
-from floorplan import register
-from floorplan.building.building import Building
+from archit_app import register
+from archit_app.building.building import Building
 
 @register("exporter", "revit_csv")
 class RevitCsvExporter:
@@ -111,7 +111,7 @@ class RevitCsvExporter:
 ```python
 import my_fp_plugin  # triggers registration
 
-from floorplan import get
+from archit_app import get
 
 ExporterClass = get("exporter", "revit_csv")
 exporter = ExporterClass()

@@ -1,7 +1,7 @@
 # API Reference — Geometry
 
 ```python
-from floorplan import (
+from archit_app import (
     CoordinateSystem, LengthUnit, YDirection,
     CRSMismatchError, require_same_crs,
     WORLD, SCREEN, IMAGE, WGS84,

@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from floorplan import Transform2D
+from archit_app import Transform2D
 
 
 def test_identity():

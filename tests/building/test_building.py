@@ -1,6 +1,6 @@
 import pytest
 
-from floorplan import Building, BuildingMetadata, Level, Room, Wall
+from archit_app import Building, BuildingMetadata, Level, Room, Wall
 
 
 def test_building_add_level_sorted(simple_square_room, simple_wall):

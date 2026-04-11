@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from floorplan import Level, WORLD, Polygon2D, Room, Wall, WallType, Column
-from floorplan.io.geojson import (
+from archit_app import Level, WORLD, Polygon2D, Room, Wall, WallType, Column
+from archit_app.io.geojson import (
     level_to_geojson,
     building_to_geojson,
     level_to_geojson_str,

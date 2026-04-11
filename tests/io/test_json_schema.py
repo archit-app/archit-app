@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-from floorplan import (
+from archit_app import (
     WORLD,
     Building,
     BuildingMetadata,
@@ -23,7 +23,7 @@ from floorplan import (
     ArcCurve,
     BezierCurve,
 )
-from floorplan.io.json_schema import (
+from archit_app.io.json_schema import (
     building_to_dict,
     building_from_dict,
     building_to_json,
@@ -166,7 +166,7 @@ def test_bezier_curve_wall_roundtrip():
 def test_json_is_valid_json(single_level_building):
     s = building_to_json(single_level_building)
     parsed = json.loads(s)
-    assert parsed["_floorplan_version"] == "0.1.0"
+    assert parsed["_archit_app_version"] == "0.1.0"
     assert "levels" in parsed
     assert "metadata" in parsed
 

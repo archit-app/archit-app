@@ -1,6 +1,6 @@
 import pytest
 
-from floorplan import WORLD, Point2D, Polygon2D, Room
+from archit_app import WORLD, Point2D, Polygon2D, Room
 
 
 def make_room(pts, name="test", program="living") -> Room:

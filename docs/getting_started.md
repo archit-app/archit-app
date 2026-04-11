@@ -5,31 +5,31 @@
 Install the core package:
 
 ```bash
-pip install floorplan
+pip install archit-app
 ```
 
 Install with optional I/O extras (DXF and SVG via `ezdxf`/`svgwrite`):
 
 ```bash
-pip install "floorplan[io]"
+pip install "archit-app[io]"
 ```
 
 Install with image support (coming soon):
 
 ```bash
-pip install "floorplan[image]"
+pip install "archit-app[image]"
 ```
 
 Install with graph-based analysis (coming soon):
 
 ```bash
-pip install "floorplan[analysis]"
+pip install "archit-app[analysis]"
 ```
 
 Install everything:
 
 ```bash
-pip install "floorplan[io,image,analysis]"
+pip install "archit-app[io,image,analysis]"
 ```
 
 **Requirements:** Python 3.11+, pydantic ≥ 2.0, shapely ≥ 2.0, numpy ≥ 1.26
@@ -41,11 +41,11 @@ pip install "floorplan[io,image,analysis]"
 The simplest useful program: one room, four walls, a door, and one SVG export.
 
 ```python
-from floorplan import (
+from archit_app import (
     Wall, Room, Level, Building,
     Opening, Polygon2D, WORLD,
 )
-from floorplan.io.svg import save_level_svg
+from archit_app.io.svg import save_level_svg
 
 # Room boundary — 6 m × 4 m rectangle, lower-left at origin
 boundary = Polygon2D.rectangle(0, 0, 6, 4, crs=WORLD)
@@ -82,7 +82,7 @@ print(building)
 ## A multi-level building
 
 ```python
-from floorplan import Level, Building, Wall, Room, Polygon2D, WORLD
+from archit_app import Level, Building, Wall, Room, Polygon2D, WORLD
 
 def make_level(index: int, elevation: float) -> Level:
     boundary = Polygon2D.rectangle(0, 0, 10, 8, crs=WORLD)
@@ -109,10 +109,10 @@ print(f"Total floors: {building.total_floors}")
 ## Saving and loading
 
 ```python
-from floorplan.io.json_schema import save_building, load_building
+from archit_app.io.json_schema import save_building, load_building
 
-save_building(building, "office_block.floorplan.json")
-restored = load_building("office_block.floorplan.json")
+save_building(building, "office_block.archit_app.json")
+restored = load_building("office_block.archit_app.json")
 
 assert restored.metadata.name == building.metadata.name
 assert len(restored.levels) == len(building.levels)
@@ -122,10 +122,10 @@ assert len(restored.levels) == len(building.levels)
 
 ## Working with curves
 
-`floorplan` supports non-Manhattan geometry via arc and Bézier walls.
+`archit_app` supports non-Manhattan geometry via arc and Bézier walls.
 
 ```python
-from floorplan import ArcCurve, BezierCurve, Wall, Point2D, WORLD
+from archit_app import ArcCurve, BezierCurve, Wall, Point2D, WORLD
 import math
 
 # A curved (arc) wall

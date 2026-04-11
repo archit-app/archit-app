@@ -1,6 +1,6 @@
 import pytest
 
-from floorplan import WORLD, Point2D, Polygon2D, CRSMismatchError
+from archit_app import WORLD, Point2D, Polygon2D, CRSMismatchError
 
 
 def square(size=4.0) -> Polygon2D:
@@ -113,7 +113,7 @@ def test_too_few_vertices_raises():
 
 
 def test_transformed():
-    from floorplan import Transform2D
+    from archit_app import Transform2D
     poly = Polygon2D.rectangle(0, 0, 2, 2, crs=WORLD)
     t = Transform2D.translate(5, 3)
     moved = poly.transformed(t)
