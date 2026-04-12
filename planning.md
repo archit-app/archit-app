@@ -471,3 +471,185 @@ Users should never have to think about CRS unless they're doing something unusua
 **Floating point at geographic scale** — if you ever store coordinates in lat/lon, subtract a local origin before doing any arithmetic. At global scale, double precision isn't sufficient for centimeter-level accuracy. Store everything in local meters; only convert to geographic at import/export boundaries.
 
 **Aspect ratio** — when `pixels_per_meter` differs on X and Y (non-square pixels, common in older DXF files and some image scanners), your scale transform needs `sx ≠ sy`. Build in support for this from day one even if you only use square pixels initially.
+
+---
+
+## Implementation Status & Gap Analysis
+
+*Updated 2026-04-11. Reflects what is actually in the codebase vs. what was planned above.*
+
+---
+
+### What Is Implemented
+
+#### Geometry Layer — complete
+- `Point2D`, `Point3D`, `Vector2D`, `Vector3D` — immutable, CRS-tagged, arithmetic-safe
+- `Polygon2D` — general non-convex with holes, full Shapely-backed boolean ops
+- `BoundingBox2D`, `BoundingBox3D`
+- `Transform2D` — 3×3 homogeneous, composable via `@`, with inverse
+- `ArcCurve`, `BezierCurve` (quadratic and cubic via De Casteljau) — fully working
+- `NURBSCurve` — **stub only**; `to_polyline()` does linear interpolation between control points; full NURBS evaluator is a TODO
+- `CoordinateSystem` with singletons `WORLD`, `SCREEN`, `IMAGE`, `WGS84`; CRS equality is enforced on arithmetic but **no `CoordinateConverter` exists** — cross-CRS conversion is not implemented
+
+#### Architectural Elements — partial
+| Element | Status |
+|---|---|
+| `Wall` | Done — straight, arc, Bezier, NURBS geometry; 6 wall types; openings attached |
+| `Room` | Done — general polygon + holes; name, program, area, level index |
+| `Opening` (Door, Window) | Done — with sill height, swing arc, frame |
+| `Opening` (Archway, Pass-through) | Enum variant exists; no factory or geometry logic |
+| `Column` | Done — rectangular and circular factories |
+| `Level` | Done — index + elevation + floor_height; holds walls/rooms/openings/columns |
+| `Building` + `BuildingMetadata` | Done |
+| `Land` | Done — GPS latlon or metric polygon, setbacks, ZoningInfo, `to_agent_context()` |
+| `SiteContext` | Minimal — boundary + north_angle + address only |
+| `Staircase` | **Missing** — planned in original design, no implementation |
+| `Ramp` | **Missing** |
+| `Elevator` / shaft | **Missing** |
+| `Slab` | **Missing** — floor/ceiling outline per level |
+| `Beam` | **Missing** |
+| `Furniture` | **Missing** |
+| `Annotation` / Dimension | **Missing** |
+
+#### I/O — partial
+| Format | Read | Write | Notes |
+|---|---|---|---|
+| JSON | Yes | Yes | Full round-trip, versioned |
+| SVG | No | Yes | Rooms, walls, openings, columns, scale bar |
+| GeoJSON | No | Yes | FeatureCollection per level |
+| DXF | **No** | Yes | `ezdxf` required; write-only |
+| IFC | **No** | **No** | Not started |
+| PDF | **No** | **No** | Not started |
+| PNG / raster | **No** | **No** | `pillow`/`opencv` listed as optional deps but unused |
+
+#### Analysis — not started
+The `analysis/` module does not exist. `networkx` and `scipy` are listed as optional dependencies but have no implementation code.
+
+#### Plugin / Registry — done
+`core/registry.py` implements the `@register` decorator and global registry as designed.
+
+#### Agent Integration — minimal
+`Land.to_agent_context()` produces a JSON-serializable dict for passing land + zoning data to an AI agent. No other AI tooling exists.
+
+---
+
+### What Is Missing (Prioritised)
+
+#### P1 — Core Floorplan Representation Gaps
+
+1. **`Staircase` element**
+   - Needs: stair polygon footprint, rise count, run depth, nosing, direction, connected level indices
+   - Required for any multi-level building to be semantically complete
+
+2. **`Slab` element**
+   - Floor and ceiling outline per level, distinct from room boundary
+   - Needed for area calculations (gross floor area) and structural exports
+
+3. **`Ramp` element**
+   - Like staircase but continuous; slope angle, width, boundary polygon
+
+4. **`Elevator` / shaft element**
+   - Shaft polygon + door positions per level; links levels like staircase does
+
+5. **`Beam` element**
+   - Span line or polygon, cross-section profile, material; part of structural layer
+
+6. **Structural grid**
+   - Named column grid (axes A–H, 1–8) that columns snap to; common in commercial architecture
+
+7. **Wall joining logic**
+   - No miter/cap logic at wall intersections; walls currently overlap at corners without any clean join
+
+#### P2 — Analysis Layer (entire module missing)
+
+8. **Room adjacency graph** (`analysis/topology.py`)
+   - Which rooms share a wall; which openings connect which rooms
+   - `networkx` already listed as optional dep; powers egress, space syntax, wayfinding
+   - Most impactful missing feature for any kind of design analysis
+
+9. **Egress / circulation** (`analysis/circulation.py`)
+   - Shortest path from room to exit; egress distance compliance
+   - Depends on adjacency graph
+
+10. **Area program validation** (`analysis/area.py`)
+    - Target area per program type vs. actual; deviation report
+    - Extends existing `Room.area` but adds a building-level summary
+
+11. **Zoning / compliance checker**
+    - `Land` already has `ZoningInfo` with FAR, lot coverage, max height
+    - Nothing currently verifies whether a `Building` placed on that `Land` violates any of those limits
+    - Should produce a structured compliance report, not just a boolean
+
+12. **Daylighting / solar** (`analysis/daylighting.py`)
+    - `north_angle` exists on both `Land` and `SiteContext` but is never used
+    - Even a simple ray-cast approximation of solar exposure would make these fields meaningful
+
+13. **Visibility / isovist** (`analysis/visibility.py`)
+    - Viewshed from a point inside a room; useful for layout quality analysis
+
+#### P3 — I/O Gaps
+
+14. **IFC export** (and eventually import)
+    - Identified in the original plan as "most important long-term"
+    - Requires `ifcopenshell`; enables interoperability with Revit, ArchiCAD, FreeCAD
+    - Even write-only IFC 4.x support (walls, rooms, openings) would be immediately useful to AEC professionals
+
+15. **DXF import**
+    - Currently write-only; reading DXF is needed to work with existing drawings
+
+16. **PDF export** (`io/pdf.py`)
+    - Standard deliverable format for architectural drawings
+
+17. **PNG / raster export** (`io/image.py`)
+    - `pillow`/`opencv` are optional deps but completely unused; add raster rendering at specified DPI/scale
+
+#### P4 — Geometry & Infrastructure Gaps
+
+18. **`CoordinateConverter`** (planned in CRS section above, not implemented)
+    - CRS is stored and checked for equality, but there is no graph-based path-finding converter
+    - Without it, any multi-CRS workflow requires manual chaining of transforms
+    - Impact: panorama ↔ world ↔ screen conversions are impossible with the current API
+
+19. **NURBS evaluator**
+    - `NURBSCurve.to_polyline()` is a linear interpolation stub
+    - Proper Cox–de Boor evaluation needed for smooth curved walls
+
+20. **`Polyline` geometry type**
+    - No first-class polyline; sequences of line segments are currently just `tuple[Point2D]` with no type or methods
+
+21. **`Line` / `Ray` / `Segment` primitives**
+    - Useful for beam spans, grid axes, section cut lines
+
+22. **`SiteContext` / `Land` consolidation**
+    - These two models partially overlap (both have `boundary`, `north_angle`, `address`, `epsg_code`)
+    - Consider merging or formally separating their responsibilities to avoid confusion
+
+#### P5 — Image / Panorama Layer (entire module missing)
+
+23. **`image/` module**
+    - `panorama.py`, `rectification.py`, `calibration.py`, `overlay.py` — all planned, none implemented
+    - `CameraModel`, `PanoramaProjector`, `RoomRectifier` from the design above are the right starting point
+
+#### P6 — Quality / Developer Experience
+
+24. **`Furniture` element** — even bounding-box placeholders would allow layout studies
+25. **`Annotation` / dimension element** — dimension lines, labels, section marks; needed for construction documents
+26. **Missing test coverage** — `NURBSCurve`, `BezierCurve`, `Vector2D/3D` ops, `BoundingBox3D`, DXF export, column element, curve transforms have no tests
+27. **`OpeningKind.ARCHWAY` / `PASS_THROUGH` factories** — enum variants exist but no geometry factories
+
+---
+
+### Recommended Build Order
+
+```
+1. Staircase + Slab elements          — completes the element layer
+2. Room adjacency graph               — unlocks all analysis
+3. Zoning compliance checker          — closes the Land/ZoningInfo loop
+4. CoordinateConverter                — makes multi-CRS workflows usable
+5. IFC export                         — industry interoperability
+6. Egress / circulation analysis      — builds on adjacency graph
+7. NURBS evaluator                    — completes the curve layer
+8. DXF import                         — round-trip DXF support
+9. PDF / raster export                — standard deliverable formats
+10. image/ module (panorama)          — most complex; do last
+```
