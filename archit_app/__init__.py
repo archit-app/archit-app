@@ -34,6 +34,7 @@ from archit_app.elements.wall import Wall, WallType
 from archit_app.elements.column import Column, ColumnShape
 from archit_app.elements.room import Room
 
+from archit_app.building.land import Land, Setbacks, ZoningInfo
 from archit_app.building.site import SiteContext
 from archit_app.building.level import Level
 from archit_app.building.building import Building, BuildingMetadata
@@ -76,7 +77,10 @@ __all__ = [
     "Column",
     "ColumnShape",
     "Room",
-    # Building
+    # Building / Land
+    "Land",
+    "Setbacks",
+    "ZoningInfo",
     "SiteContext",
     "Level",
     "Building",

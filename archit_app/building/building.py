@@ -12,6 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from archit_app.building.land import Land
 from archit_app.building.level import Level
 from archit_app.building.site import SiteContext
 from archit_app.elements.base import Element
@@ -41,6 +42,7 @@ class Building(BaseModel):
     metadata: BuildingMetadata = Field(default_factory=BuildingMetadata)
     levels: tuple[Level, ...] = ()
     site: SiteContext | None = None
+    land: Land | None = None
 
     # ------------------------------------------------------------------
     # Queries
@@ -94,6 +96,9 @@ class Building(BaseModel):
 
     def with_site(self, site: SiteContext) -> "Building":
         return self.model_copy(update={"site": site})
+
+    def with_land(self, land: Land) -> "Building":
+        return self.model_copy(update={"land": land})
 
     def __repr__(self) -> str:
         return (
