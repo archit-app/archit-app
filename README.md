@@ -22,7 +22,8 @@ pip install archit-app
 
 - Geometry primitives with coordinate system (CRS) tagging — mixing spaces raises an error immediately
 - Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns
-- Multi-level building structure: `Level → Building → SiteContext`
+- Multi-level building structure: `Level → Building`
+- **Land parcel model** — define a site from GPS coordinates, compute area/setbacks/buildable envelope, and export a context dict for AI agents to look up zoning and regulations
 - I/O: JSON (fully round-trippable), SVG, GeoJSON, DXF (optional)
 - Plugin registry for extending the library without touching core code
 - Immutable Pydantic models throughout — every "mutation" returns a new object
@@ -136,6 +137,52 @@ fc = level_to_geojson(ground)
 print(json.dumps(fc, indent=2))
 ```
 
+### Define a land parcel and get agent context
+
+```python
+from archit_app import Land, Setbacks, ZoningInfo, Building
+
+# 1. Define the parcel from GPS coordinates
+land = Land.from_latlon([
+    (37.7749, -122.4194),
+    (37.7750, -122.4194),
+    (37.7750, -122.4183),
+    (37.7749, -122.4183),
+], address="123 Main St, San Francisco, CA")
+
+print(f"Lot area: {land.area_m2:.1f} m²")
+
+# 2. Export a context dict — pass this to an AI agent to get zoning info
+context = land.to_agent_context()
+# {
+#   "address": "123 Main St, San Francisco, CA",
+#   "area_m2": 598.1,
+#   "latlon_coords": [...],
+#   "centroid_latlon": [...],
+#   ...
+# }
+
+# 3. Enrich with zoning (manually or from an agent response)
+land = (
+    land
+    .with_zoning(ZoningInfo(
+        zone_code="RH-2",
+        max_height_m=10.0,
+        max_far=1.8,
+        max_lot_coverage=0.6,
+        allowed_uses=("residential",),
+        source="SF Planning Code §207",
+    ))
+    .with_setbacks(Setbacks(front=3.0, back=6.0, left=1.5, right=1.5))
+)
+
+print(f"Buildable area: {land.buildable_area_m2:.1f} m²")
+print(f"Max floor area: {land.max_floor_area_m2:.1f} m²")
+
+# 4. Attach the land to a building
+building = Building().with_land(land)
+```
+
 ### Export to DXF
 
 ```python
@@ -170,7 +217,7 @@ The library is structured in layers:
 archit_app/
 ├── geometry/     Layer 1 — CRS, points, vectors, transforms, polygons, curves
 ├── elements/     Layer 2 — Wall, Room, Opening, Column (all Element subclasses)
-├── building/     Layer 3 — Level, Building, SiteContext
+├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building, SiteContext
 ├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF
 ├── core/         Registry — plugin/extension system
 └── utils/        Unit helpers
@@ -201,7 +248,7 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 |-------|--------|-------------|
 | Layer 1 — Geometry | Done | CRS, Point, Vector, BBox, Polygon, Curve, Transform |
 | Layer 2 — Elements | Done | Wall, Room, Opening, Column |
-| Layer 3 — Building | Done | Level, Building, SiteContext |
+| Layer 3 — Building | Done | Level, Building, SiteContext, Land, Setbacks, ZoningInfo |
 | Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF |
 | Layer 4 — Image | Planned | Panorama, rectification, camera calibration |
 | Layer 6 — Analysis | Planned | Topology graph, area, circulation, visibility |
