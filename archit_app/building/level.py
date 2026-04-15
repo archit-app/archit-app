@@ -11,9 +11,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from archit_app.elements.base import Element
+from archit_app.elements.beam import Beam
 from archit_app.elements.column import Column
 from archit_app.elements.opening import Opening
+from archit_app.elements.ramp import Ramp
 from archit_app.elements.room import Room
+from archit_app.elements.slab import Slab
+from archit_app.elements.staircase import Staircase
 from archit_app.elements.wall import Wall
 from archit_app.geometry.bbox import BoundingBox2D
 
@@ -39,13 +43,20 @@ class Level(BaseModel):
     rooms: tuple[Room, ...] = ()
     openings: tuple[Opening, ...] = ()
     columns: tuple[Column, ...] = ()
+    staircases: tuple[Staircase, ...] = ()
+    slabs: tuple[Slab, ...] = ()
+    ramps: tuple[Ramp, ...] = ()
+    beams: tuple[Beam, ...] = ()
 
     # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------
 
     def get_element_by_id(self, element_id: UUID) -> Element | None:
-        for collection in (self.walls, self.rooms, self.openings, self.columns):
+        for collection in (
+            self.walls, self.rooms, self.openings, self.columns,
+            self.staircases, self.slabs, self.ramps, self.beams,
+        ):
             for el in collection:
                 if el.id == element_id:
                     return el
@@ -83,6 +94,18 @@ class Level(BaseModel):
     def add_column(self, column: Column) -> "Level":
         return self.model_copy(update={"columns": (*self.columns, column)})
 
+    def add_staircase(self, staircase: Staircase) -> "Level":
+        return self.model_copy(update={"staircases": (*self.staircases, staircase)})
+
+    def add_slab(self, slab: Slab) -> "Level":
+        return self.model_copy(update={"slabs": (*self.slabs, slab)})
+
+    def add_ramp(self, ramp: Ramp) -> "Level":
+        return self.model_copy(update={"ramps": (*self.ramps, ramp)})
+
+    def add_beam(self, beam: Beam) -> "Level":
+        return self.model_copy(update={"beams": (*self.beams, beam)})
+
     def remove_element(self, element_id: UUID) -> "Level":
         return self.model_copy(
             update={
@@ -90,6 +113,10 @@ class Level(BaseModel):
                 "rooms": tuple(r for r in self.rooms if r.id != element_id),
                 "openings": tuple(o for o in self.openings if o.id != element_id),
                 "columns": tuple(c for c in self.columns if c.id != element_id),
+                "staircases": tuple(s for s in self.staircases if s.id != element_id),
+                "slabs": tuple(s for s in self.slabs if s.id != element_id),
+                "ramps": tuple(r for r in self.ramps if r.id != element_id),
+                "beams": tuple(b for b in self.beams if b.id != element_id),
             }
         )
 

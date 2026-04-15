@@ -31,13 +31,20 @@ from archit_app.geometry.curve import ArcCurve, BezierCurve, NURBSCurve, CurveBa
 from archit_app.elements.base import Element
 from archit_app.elements.opening import Opening, OpeningKind, SwingGeometry, Frame
 from archit_app.elements.wall import Wall, WallType
+from archit_app.elements.wall_join import miter_join, butt_join, join_walls
 from archit_app.elements.column import Column, ColumnShape
 from archit_app.elements.room import Room
+from archit_app.elements.staircase import Staircase, StaircaseType
+from archit_app.elements.slab import Slab, SlabType
+from archit_app.elements.ramp import Ramp, RampType
+from archit_app.elements.elevator import Elevator, ElevatorDoor
+from archit_app.elements.beam import Beam, BeamSection
 
 from archit_app.building.land import Land, Setbacks, ZoningInfo
 from archit_app.building.site import SiteContext
 from archit_app.building.level import Level
 from archit_app.building.building import Building, BuildingMetadata
+from archit_app.building.grid import StructuralGrid, GridAxis
 
 from archit_app.core.registry import register, get, list_registered, get_all
 
@@ -74,9 +81,22 @@ __all__ = [
     "Frame",
     "Wall",
     "WallType",
+    "miter_join",
+    "butt_join",
+    "join_walls",
     "Column",
     "ColumnShape",
     "Room",
+    "Staircase",
+    "StaircaseType",
+    "Slab",
+    "SlabType",
+    "Ramp",
+    "RampType",
+    "Elevator",
+    "ElevatorDoor",
+    "Beam",
+    "BeamSection",
     # Building / Land
     "Land",
     "Setbacks",
@@ -85,6 +105,8 @@ __all__ = [
     "Level",
     "Building",
     "BuildingMetadata",
+    "StructuralGrid",
+    "GridAxis",
     # Registry
     "register",
     "get",

@@ -12,10 +12,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from archit_app.building.grid import StructuralGrid
 from archit_app.building.land import Land
 from archit_app.building.level import Level
 from archit_app.building.site import SiteContext
 from archit_app.elements.base import Element
+from archit_app.elements.elevator import Elevator
 
 
 class BuildingMetadata(BaseModel):
@@ -43,6 +45,8 @@ class Building(BaseModel):
     levels: tuple[Level, ...] = ()
     site: SiteContext | None = None
     land: Land | None = None
+    elevators: tuple[Elevator, ...] = ()
+    grid: StructuralGrid | None = None
 
     # ------------------------------------------------------------------
     # Queries
@@ -99,6 +103,17 @@ class Building(BaseModel):
 
     def with_land(self, land: Land) -> "Building":
         return self.model_copy(update={"land": land})
+
+    def add_elevator(self, elevator: Elevator) -> "Building":
+        return self.model_copy(update={"elevators": (*self.elevators, elevator)})
+
+    def remove_elevator(self, elevator_id) -> "Building":
+        return self.model_copy(
+            update={"elevators": tuple(e for e in self.elevators if e.id != elevator_id)}
+        )
+
+    def with_grid(self, grid: StructuralGrid) -> "Building":
+        return self.model_copy(update={"grid": grid})
 
     def __repr__(self) -> str:
         return (
