@@ -25,7 +25,14 @@ pip install archit-app
 - **Wall joining** — `miter_join()`, `butt_join()`, `join_walls()` for clean corner geometry
 - **Structural grid** — named axes (A–H, 1–8), intersection queries, and point snapping
 - Multi-level building structure: `Level → Building`, with elevators and a grid attached at building level
-- **Land parcel model** — define a site from GPS coordinates, compute area/setbacks/buildable envelope, and export a context dict for AI agents to look up zoning and regulations
+- **Land parcel model** — GPS coordinates, setbacks, buildable envelope, and an AI-agent context hook
+- **Spatial analysis** (`archit_app.analysis`):
+  - Room adjacency graph and connected components (networkx)
+  - Egress path finding and compliance reporting
+  - Area program validation against design targets
+  - Zoning compliance checker (FAR, lot coverage, height, setbacks)
+  - Daylighting and solar orientation report per room
+  - Isovist (visibility polygon) from any viewpoint
 - I/O: JSON (fully round-trippable), SVG, GeoJSON, DXF (optional)
 - Plugin registry for extending the library without touching core code
 - Immutable Pydantic models throughout — every "mutation" returns a new object
@@ -279,6 +286,64 @@ walls = [
 joined_walls = join_walls(walls)
 ```
 
+### Spatial analysis
+
+```python
+from archit_app.analysis.topology import build_adjacency_graph, connected_components
+from archit_app.analysis.circulation import egress_report
+from archit_app.analysis.area import area_by_program, area_report, AreaTarget
+from archit_app.analysis.compliance import check_compliance
+from archit_app.analysis.daylighting import daylight_report
+from archit_app.analysis.visibility import compute_isovist, mutual_visibility
+
+# --- Room adjacency graph (requires pip install archit-app[analysis]) ---
+G = build_adjacency_graph(ground)
+# G.nodes[room.id] = {room, centroid, area_m2, program, level_index}
+# G.edges[a, b]    = {shared_length_m, distance_m, opening_ids}
+
+components = connected_components(G)   # list of connected room groups
+
+# --- Egress compliance ---
+exit_ids = {stair_room.id, lobby_room.id}
+report = egress_report(ground, exit_ids=exit_ids, max_distance_m=30.0)
+# [{"room_id", "egress_distance_m", "path", "compliant"}, ...]
+
+# --- Area program validation ---
+totals = area_by_program(building)
+# {"bedroom": 32.0, "kitchen": 8.0, ...}
+
+results = area_report(building, targets=[
+    AreaTarget(program="bedroom", target_m2=30.0, tolerance_fraction=0.10),
+    AreaTarget(program="kitchen", target_m2=10.0),
+])
+# [ProgramAreaResult(program, actual_m2, target_m2, deviation_fraction, compliant), ...]
+
+# --- Zoning compliance ---
+compliance = check_compliance(building, land)
+print(compliance.summary())
+# Compliance report — PASS
+#   [PASS] Floor Area Ratio (FAR): 0.16  (limit: 0.5)
+#   [PASS] Building height: 3.0 m  (limit: 10.0 m)
+#   [PASS] Footprint within lot boundary: yes
+#   [PASS] Footprint within setback envelope: yes
+
+# --- Daylighting ---
+daylight = daylight_report(ground, north_angle_deg=15.0)
+for r in daylight:
+    print(f"{r.room_name}: WFR={r.window_to_floor_ratio:.2f}, "
+          f"solar_score={r.avg_solar_score:.2f}")
+
+# --- Isovist (visibility polygon) ---
+from archit_app import Point2D, WORLD
+vp = Point2D(x=5.0, y=3.0, crs=WORLD)
+result = compute_isovist(vp, ground, resolution=360, max_range=20.0)
+print(f"Visible area: {result.area_m2:.1f} m²")
+
+# Line-of-sight check
+can_see = mutual_visibility(Point2D(x=2, y=2, crs=WORLD),
+                             Point2D(x=8, y=2, crs=WORLD), ground)
+```
+
 ---
 
 ## Coordinate System
@@ -307,6 +372,8 @@ archit_app/
 │                            Ramp, Elevator, Beam, wall_join utilities
 ├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building,
 │                            SiteContext, StructuralGrid
+├── analysis/     Layer 6 — topology, circulation, area, compliance,
+│                            daylighting, visibility
 ├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF
 ├── core/         Registry — plugin/extension system
 └── utils/        Unit helpers
@@ -342,13 +409,12 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Layer 2 — Wall joining | Done | `miter_join`, `butt_join`, `join_walls` |
 | Layer 3 — Building | Done | Level, Building, SiteContext, Land, Setbacks, ZoningInfo |
 | Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF |
-| Compliance checker | Planned | Validate Building against Land.zoning (FAR, coverage, height) |
+| Layer 6 — Analysis | Done | Topology graph, egress, area validation, zoning compliance, daylighting, isovist |
 | CoordinateConverter | Planned | Graph-based multi-CRS path-finding converter |
 | NURBS evaluator | Planned | Full Cox–de Boor evaluation for curved walls |
 | IFC export | Planned | IFC 4.x via ifcopenshell |
 | DXF import | Planned | Round-trip DXF support |
 | PDF / raster export | Planned | Print-ready output at specified DPI/scale |
-| Layer 6 — Analysis | Planned | Room adjacency graph, egress, circulation, visibility |
 | Layer 4 — Image | Planned | Panorama, rectification, camera calibration |
 
 ---

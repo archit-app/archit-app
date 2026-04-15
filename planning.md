@@ -536,8 +536,25 @@ Users should never have to think about CRS unless they're doing something unusua
 - `join_walls(walls)` — applies miter joins to all endpoint-sharing pairs in a collection
 - Uses Shapely half-plane intersection; supports only `Polygon2D`-geometry walls
 
-#### Analysis — not started
-The `analysis/` module does not exist. `networkx` and `scipy` are listed as optional dependencies but have no implementation code.
+#### Analysis — done (`archit_app/analysis/`)
+
+All six analysis modules implemented (commit `P2`, 2026-04-14):
+
+| Module | File | Key exports |
+|---|---|---|
+| Room adjacency graph | `topology.py` | `build_adjacency_graph()`, `rooms_adjacent_to()`, `connected_components()` |
+| Egress / circulation | `circulation.py` | `find_egress_path()`, `egress_distance_m()`, `egress_report()` |
+| Area program validation | `area.py` | `area_by_program()`, `area_report()`, `AreaTarget`, `ProgramAreaResult` |
+| Zoning compliance | `compliance.py` | `check_compliance()`, `ComplianceReport`, `ComplianceCheck` |
+| Daylighting / solar | `daylighting.py` | `daylight_report()`, `RoomDaylightResult`, `WindowSolarResult` |
+| Visibility / isovist | `visibility.py` | `compute_isovist()`, `visible_area_m2()`, `mutual_visibility()` |
+
+Design notes:
+- `topology.py` and `circulation.py` require `networkx` (optional dep); all others use only core Shapely
+- Adjacency uses a boundary-buffer approach (default 0.4 m tolerance) so rooms separated by wall thickness are correctly linked
+- `compliance.py` infers the building footprint from ground-floor room boundaries; checks FAR, lot coverage, height, and setback containment
+- `daylighting.py` uses a cosine solar model (`score = max(0, cos(angle_from_south))`); accounts for `north_angle_deg`
+- `visibility.py` uses Shapely ray casting (configurable resolution and max range); supports `mutual_visibility()` line-of-sight check
 
 #### Plugin / Registry — done
 `core/registry.py` implements the `@register` decorator and global registry as designed.
@@ -582,32 +599,31 @@ All P1 items were implemented in commit `710e939` (2026-04-14).
    - `butt_join()`: wall_b trimmed to abut wall_a, wall_a unchanged
    - `join_walls()`: applies miter to all endpoint-sharing pairs in a collection
 
-#### P2 — Analysis Layer (entire module missing)
+#### P2 — Analysis Layer ✓ Complete
 
-8. **Room adjacency graph** (`analysis/topology.py`)
-   - Which rooms share a wall; which openings connect which rooms
-   - `networkx` already listed as optional dep; powers egress, space syntax, wayfinding
-   - Most impactful missing feature for any kind of design analysis
+All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" above for details.
 
-9. **Egress / circulation** (`analysis/circulation.py`)
-   - Shortest path from room to exit; egress distance compliance
-   - Depends on adjacency graph
+8. ~~**Room adjacency graph**~~ — **Done** (`analysis/topology.py`)
+   - Buffer-based boundary proximity; detects openings on shared walls
+   - `build_adjacency_graph()`, `connected_components()`, `rooms_adjacent_to()`
 
-10. **Area program validation** (`analysis/area.py`)
-    - Target area per program type vs. actual; deviation report
-    - Extends existing `Room.area` but adds a building-level summary
+9. ~~**Egress / circulation**~~ — **Done** (`analysis/circulation.py`)
+   - Dijkstra shortest path; distance-weighted; `egress_report()` for full-level compliance
 
-11. **Zoning / compliance checker**
-    - `Land` already has `ZoningInfo` with FAR, lot coverage, max height
-    - Nothing currently verifies whether a `Building` placed on that `Land` violates any of those limits
-    - Should produce a structured compliance report, not just a boolean
+10. ~~**Area program validation**~~ — **Done** (`analysis/area.py`)
+    - `AreaTarget` + `ProgramAreaResult`; tolerance-fraction compliance; multi-level aggregation
 
-12. **Daylighting / solar** (`analysis/daylighting.py`)
-    - `north_angle` exists on both `Land` and `SiteContext` but is never used
-    - Even a simple ray-cast approximation of solar exposure would make these fields meaningful
+11. ~~**Zoning / compliance checker**~~ — **Done** (`analysis/compliance.py`)
+    - `check_compliance(building, land)` → `ComplianceReport` with per-check pass/fail
+    - Checks: FAR, lot coverage, height, footprint within lot, footprint within buildable envelope
 
-13. **Visibility / isovist** (`analysis/visibility.py`)
-    - Viewshed from a point inside a room; useful for layout quality analysis
+12. ~~**Daylighting / solar**~~ — **Done** (`analysis/daylighting.py`)
+    - Window-to-room spatial attribution via boundary distance
+    - Cosine solar score model; cardinal direction; `north_angle_deg` support
+
+13. ~~**Visibility / isovist**~~ — **Done** (`analysis/visibility.py`)
+    - Ray-casting with configurable resolution and range
+    - `mutual_visibility()` for line-of-sight checks between two points
 
 #### P3 — I/O Gaps
 
@@ -665,7 +681,7 @@ All P1 items were implemented in commit `710e939` (2026-04-14).
 
 ```
 1. ✓ Staircase, Slab, Ramp, Elevator, Beam, StructuralGrid, wall joining  (done 2026-04-14)
-2. Room adjacency graph               — unlocks all analysis
+2. ✓ Room adjacency graph, egress, area validation, compliance, daylighting, isovist  (done 2026-04-14)
 3. Zoning compliance checker          — closes the Land/ZoningInfo loop
 4. CoordinateConverter                — makes multi-CRS workflows usable
 5. IFC export                         — industry interoperability
