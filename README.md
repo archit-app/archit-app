@@ -21,8 +21,10 @@ pip install archit-app
 **Key features:**
 
 - Geometry primitives with coordinate system (CRS) tagging — mixing spaces raises an error immediately
-- Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns
-- Multi-level building structure: `Level → Building`
+- Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns, **staircases, slabs, ramps, elevators, beams**
+- **Wall joining** — `miter_join()`, `butt_join()`, `join_walls()` for clean corner geometry
+- **Structural grid** — named axes (A–H, 1–8), intersection queries, and point snapping
+- Multi-level building structure: `Level → Building`, with elevators and a grid attached at building level
 - **Land parcel model** — define a site from GPS coordinates, compute area/setbacks/buildable envelope, and export a context dict for AI agents to look up zoning and regulations
 - I/O: JSON (fully round-trippable), SVG, GeoJSON, DXF (optional)
 - Plugin registry for extending the library without touching core code
@@ -192,6 +194,91 @@ from archit_app.io.dxf import save_building_dxf
 save_building_dxf(building, "my_house.dxf")
 ```
 
+### Vertical circulation and structural elements
+
+```python
+import math
+from archit_app import (
+    Staircase, Slab, Ramp, Elevator, ElevatorDoor,
+    Beam, BeamSection, Level, Building,
+)
+
+# Staircase — 12 risers connecting ground floor to first floor
+stair = Staircase.straight(
+    x=6, y=0, width=1.2, rise_count=12,
+    rise_height=0.175, run_depth=0.28,
+    bottom_level_index=0, top_level_index=1,
+)
+print(f"Total rise: {stair.total_rise:.2f} m")   # 2.10 m
+
+# Slab — 200 mm concrete floor deck
+slab = Slab.rectangular(x=0, y=0, width=10, depth=8,
+                         thickness=0.2, elevation=0.0)
+
+# Ramp — 1:12 accessible ramp (≈ 4.8° slope)
+ramp = Ramp.straight(x=0, y=0, width=1.5, length=3.6,
+                      slope_angle=math.radians(4.76),
+                      bottom_level_index=0, top_level_index=1)
+
+# Elevator — 1.1 × 1.4 m cab, 0 → 3
+elevator = Elevator.rectangular(x=8, y=0, cab_width=1.1, cab_depth=1.4,
+                                 bottom_level_index=0, top_level_index=3)
+
+# Structural beam — 300 mm wide, 500 mm deep, top at 3.5 m
+beam = Beam.straight(x1=0, y1=0, x2=6, y2=0,
+                     width=0.3, depth=0.5, elevation=3.5,
+                     section=BeamSection.RECTANGULAR)
+print(f"Span: {beam.span:.1f} m, soffit: {beam.soffit_elevation:.2f} m")
+
+# Assemble
+ground = (
+    Level(index=0, elevation=0.0, floor_height=3.0)
+    .add_staircase(stair)
+    .add_slab(slab)
+    .add_ramp(ramp)
+    .add_beam(beam)
+)
+building = Building().add_level(ground).add_elevator(elevator)
+```
+
+### Structural grid and wall joining
+
+```python
+from archit_app import StructuralGrid, Wall, join_walls, miter_join, Point2D, WORLD
+
+# Create a 3 × 3 regular grid at 6 m spacing
+grid = StructuralGrid.regular(
+    x_spacing=6.0, y_spacing=6.0,
+    x_count=3, y_count=3,
+)
+
+# Query intersections
+pt = grid.intersection("2", "B")   # grid point at column 2, row B
+print(pt)                           # Point2D(x=6.0, y=6.0, ...)
+
+# Snap a point to the nearest grid intersection
+p = Point2D(x=5.95, y=6.1, crs=WORLD)
+snapped = grid.snap_to_grid(p, tolerance=0.2)
+
+# Attach grid to a building
+building = Building().with_grid(grid)
+
+# Clean up wall corners with miter joins
+wall_h = Wall.straight(0, 0, 5, 0, thickness=0.2, height=3.0)
+wall_v = Wall.straight(5, 0, 5, 4, thickness=0.2, height=3.0)
+
+wall_h_trimmed, wall_v_trimmed = miter_join(wall_h, wall_v)
+
+# Or join a whole room's worth of walls at once
+walls = [
+    Wall.straight(0, 0, 5, 0, thickness=0.2, height=3.0),
+    Wall.straight(5, 0, 5, 4, thickness=0.2, height=3.0),
+    Wall.straight(5, 4, 0, 4, thickness=0.2, height=3.0),
+    Wall.straight(0, 4, 0, 0, thickness=0.2, height=3.0),
+]
+joined_walls = join_walls(walls)
+```
+
 ---
 
 ## Coordinate System
@@ -216,8 +303,10 @@ The library is structured in layers:
 ```
 archit_app/
 ├── geometry/     Layer 1 — CRS, points, vectors, transforms, polygons, curves
-├── elements/     Layer 2 — Wall, Room, Opening, Column (all Element subclasses)
-├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building, SiteContext
+├── elements/     Layer 2 — Wall, Room, Opening, Column, Staircase, Slab,
+│                            Ramp, Elevator, Beam, wall_join utilities
+├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building,
+│                            SiteContext, StructuralGrid
 ├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF
 ├── core/         Registry — plugin/extension system
 └── utils/        Unit helpers
@@ -247,13 +336,20 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Layer 1 — Geometry | Done | CRS, Point, Vector, BBox, Polygon, Curve, Transform |
-| Layer 2 — Elements | Done | Wall, Room, Opening, Column |
+| Layer 2 — Elements (core) | Done | Wall, Room, Opening, Column |
+| Layer 2 — Elements (vertical circulation) | Done | Staircase, Ramp, Elevator |
+| Layer 2 — Elements (structural) | Done | Slab, Beam, StructuralGrid |
+| Layer 2 — Wall joining | Done | `miter_join`, `butt_join`, `join_walls` |
 | Layer 3 — Building | Done | Level, Building, SiteContext, Land, Setbacks, ZoningInfo |
 | Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF |
-| Layer 4 — Image | Planned | Panorama, rectification, camera calibration |
-| Layer 6 — Analysis | Planned | Topology graph, area, circulation, visibility |
-| Layer 7 — Rendering | Planned | Matplotlib interactive, advanced SVG |
+| Compliance checker | Planned | Validate Building against Land.zoning (FAR, coverage, height) |
+| CoordinateConverter | Planned | Graph-based multi-CRS path-finding converter |
+| NURBS evaluator | Planned | Full Cox–de Boor evaluation for curved walls |
 | IFC export | Planned | IFC 4.x via ifcopenshell |
+| DXF import | Planned | Round-trip DXF support |
+| PDF / raster export | Planned | Print-ready output at specified DPI/scale |
+| Layer 6 — Analysis | Planned | Room adjacency graph, egress, circulation, visibility |
+| Layer 4 — Image | Planned | Panorama, rectification, camera calibration |
 
 ---
 

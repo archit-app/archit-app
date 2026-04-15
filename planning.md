@@ -499,15 +499,15 @@ Users should never have to think about CRS unless they're doing something unusua
 | `Opening` (Door, Window) | Done — with sill height, swing arc, frame |
 | `Opening` (Archway, Pass-through) | Enum variant exists; no factory or geometry logic |
 | `Column` | Done — rectangular and circular factories |
-| `Level` | Done — index + elevation + floor_height; holds walls/rooms/openings/columns |
-| `Building` + `BuildingMetadata` | Done |
+| `Staircase` | Done — straight factory; rise/run/width/direction; level links; `total_rise`, `slope_angle` |
+| `Slab` | Done — floor/ceiling/roof plate; penetration holes; `rectangular()` factory |
+| `Ramp` | Done — slope angle, direction, level links; `slope_percent`, `total_rise`; `straight()` factory |
+| `Elevator` + `ElevatorDoor` | Done — shaft polygon, cab dimensions, per-level doors; `rectangular()` factory |
+| `Beam` | Done — accurate span (centreline length), soffit elevation; `straight()` factory |
+| `Level` | Done — holds walls, rooms, openings, columns, staircases, slabs, ramps, beams |
+| `Building` + `BuildingMetadata` | Done — holds levels, elevators, and optional `StructuralGrid` |
 | `Land` | Done — GPS latlon or metric polygon, setbacks, ZoningInfo, `to_agent_context()` |
 | `SiteContext` | Minimal — boundary + north_angle + address only |
-| `Staircase` | **Missing** — planned in original design, no implementation |
-| `Ramp` | **Missing** |
-| `Elevator` / shaft | **Missing** |
-| `Slab` | **Missing** — floor/ceiling outline per level |
-| `Beam` | **Missing** |
 | `Furniture` | **Missing** |
 | `Annotation` / Dimension | **Missing** |
 
@@ -522,6 +522,20 @@ Users should never have to think about CRS unless they're doing something unusua
 | PDF | **No** | **No** | Not started |
 | PNG / raster | **No** | **No** | `pillow`/`opencv` listed as optional deps but unused |
 
+#### Structural Grid — done
+`building/grid.py` implements `StructuralGrid` and `GridAxis`:
+- `GridAxis`: named reference line with `length`, `direction`, `midpoint`, `nearest_point()`
+- `StructuralGrid`: `intersection(x_name, y_name)`, `snap_to_grid(p, tolerance)`, `nearest_intersection(p)`
+- `StructuralGrid.regular()` factory generates a regular orthogonal grid with custom labels
+- Attached to `Building` via `Building.with_grid()`
+
+#### Wall Joining — done
+`elements/wall_join.py` implements:
+- `miter_join(wall_a, wall_b)` — clips both walls at the angle-bisector plane through the shared endpoint
+- `butt_join(wall_a, wall_b)` — trims wall_b to abut wall_a; wall_a unchanged
+- `join_walls(walls)` — applies miter joins to all endpoint-sharing pairs in a collection
+- Uses Shapely half-plane intersection; supports only `Polygon2D`-geometry walls
+
 #### Analysis — not started
 The `analysis/` module does not exist. `networkx` and `scipy` are listed as optional dependencies but have no implementation code.
 
@@ -535,30 +549,38 @@ The `analysis/` module does not exist. `networkx` and `scipy` are listed as opti
 
 ### What Is Missing (Prioritised)
 
-#### P1 — Core Floorplan Representation Gaps
+#### P1 — Core Floorplan Representation Gaps ✓ Complete
 
-1. **`Staircase` element**
-   - Needs: stair polygon footprint, rise count, run depth, nosing, direction, connected level indices
-   - Required for any multi-level building to be semantically complete
+All P1 items were implemented in commit `710e939` (2026-04-14).
 
-2. **`Slab` element**
-   - Floor and ceiling outline per level, distinct from room boundary
-   - Needed for area calculations (gross floor area) and structural exports
+1. ~~**`Staircase` element**~~ — **Done** (`elements/staircase.py`)
+   - Straight factory with rise/run/width/direction; `total_rise`, `total_run`, `slope_angle` properties
+   - Level link validation (`bottom_level_index < top_level_index`)
 
-3. **`Ramp` element**
-   - Like staircase but continuous; slope angle, width, boundary polygon
+2. ~~**`Slab` element**~~ — **Done** (`elements/slab.py`)
+   - Floor/ceiling/roof plate with penetration holes; `area`, `gross_area`, `perimeter`
+   - `rectangular()` factory; `SlabType` enum (FLOOR, CEILING, ROOF)
 
-4. **`Elevator` / shaft element**
-   - Shaft polygon + door positions per level; links levels like staircase does
+3. ~~**`Ramp` element**~~ — **Done** (`elements/ramp.py`)
+   - Slope angle in radians, `slope_percent`, `total_rise`; `straight()` factory with direction rotation
 
-5. **`Beam` element**
-   - Span line or polygon, cross-section profile, material; part of structural layer
+4. ~~**`Elevator` / shaft element**~~ — **Done** (`elements/elevator.py`)
+   - `Elevator` with shaft polygon, cab dimensions; `ElevatorDoor` per served level
+   - `rectangular()` factory with configurable shaft clearance; stored on `Building`
 
-6. **Structural grid**
-   - Named column grid (axes A–H, 1–8) that columns snap to; common in commercial architecture
+5. ~~**`Beam` element**~~ — **Done** (`elements/beam.py`)
+   - Accurate `span` via centreline midpoint math (not bounding box); `soffit_elevation` property
+   - `BeamSection` enum (RECTANGULAR, I_SECTION, T_SECTION, CIRCULAR, CUSTOM)
 
-7. **Wall joining logic**
-   - No miter/cap logic at wall intersections; walls currently overlap at corners without any clean join
+6. ~~**Structural grid**~~ — **Done** (`building/grid.py`)
+   - `GridAxis` with `length`, `direction`, `nearest_point()`
+   - `StructuralGrid` with `intersection()`, `snap_to_grid()`, `nearest_intersection()`
+   - `StructuralGrid.regular()` factory; attached to `Building` via `with_grid()`
+
+7. ~~**Wall joining logic**~~ — **Done** (`elements/wall_join.py`)
+   - `miter_join()`: both walls clipped at angle-bisector plane using Shapely
+   - `butt_join()`: wall_b trimmed to abut wall_a, wall_a unchanged
+   - `join_walls()`: applies miter to all endpoint-sharing pairs in a collection
 
 #### P2 — Analysis Layer (entire module missing)
 
@@ -642,7 +664,7 @@ The `analysis/` module does not exist. `networkx` and `scipy` are listed as opti
 ### Recommended Build Order
 
 ```
-1. Staircase + Slab elements          — completes the element layer
+1. ✓ Staircase, Slab, Ramp, Elevator, Beam, StructuralGrid, wall joining  (done 2026-04-14)
 2. Room adjacency graph               — unlocks all analysis
 3. Zoning compliance checker          — closes the Land/ZoningInfo loop
 4. CoordinateConverter                — makes multi-CRS workflows usable
