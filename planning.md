@@ -520,7 +520,7 @@ Users should never have to think about CRS unless they're doing something unusua
 | JSON | Yes | Yes | Full round-trip, versioned |
 | SVG | No | Yes | Rooms, walls, openings, columns, scale bar |
 | GeoJSON | No | Yes | FeatureCollection per level |
-| DXF | **No** | Yes | `ezdxf` required; write-only |
+| DXF | Yes | Yes | `ezdxf` required; full round-trip via `level_from_dxf` / `building_from_dxf` |
 | IFC | **No** | Yes | Write-only IFC 4.x; `ifcopenshell` required |
 | PDF | **No** | **No** | Not started |
 | PNG / raster | **No** | **No** | `pillow`/`opencv` listed as optional deps but unused |
@@ -640,8 +640,12 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - `building_to_ifc(building) → ifcopenshell.file`, `save_building_ifc(building, path)`
     - 28 tests in `tests/io/test_ifc.py` (2 always-run guard tests + 26 skipped until `ifcopenshell` installed)
 
-15. **DXF import**
-    - Currently write-only; reading DXF is needed to work with existing drawings
+15. ~~**DXF import**~~ — **Done** (`io/dxf.py`, 2026-04-15)
+    - `level_from_dxf(path, *, layer_mapping, level_index, wall_height, …)` — reads LWPOLYLINE entities; maps `FP_*` layers automatically
+    - `building_from_dxf(path, …)` — auto-detects `L{dd}_FP_*` level prefixes; single-level DXF works too
+    - `layer_mapping` dict for generic DXF files with non-standard layer names
+    - Backward-compatible hatch API fix for ezdxf ≥ 1.0 (`paths.add_polyline_path` vs `edit_boundary`)
+    - 24 tests in `tests/io/test_dxf.py` (2 import-guard + 22 round-trip / edge-case tests)
 
 16. **PDF export** (`io/pdf.py`)
     - Standard deliverable format for architectural drawings
@@ -704,7 +708,7 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 5. ✓ IFC export                         — done 2026-04-15  (io/ifc.py)
 6. ✓ Egress / circulation analysis      — done as part of P2
 7. ✓ NURBS evaluator                    — done 2026-04-15  (geometry/curve.py)
-8. DXF import                         — round-trip DXF support
+8. ✓ DXF import                        — done 2026-04-15  (io/dxf.py)
 9. PDF / raster export                — standard deliverable formats
 10. image/ module (panorama)          — most complex; do last
 ```

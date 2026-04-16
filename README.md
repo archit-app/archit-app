@@ -35,7 +35,7 @@ pip install archit-app
   - Zoning compliance checker (FAR, lot coverage, height, setbacks)
   - Daylighting and solar orientation report per room
   - Isovist (visibility polygon) from any viewpoint
-- I/O: JSON (fully round-trippable), SVG, GeoJSON, DXF (optional), **IFC 4.x export** (optional, via `ifcopenshell`)
+- I/O: JSON (fully round-trippable), SVG, GeoJSON, **DXF round-trip** (read + write, optional), **IFC 4.x export** (optional, via `ifcopenshell`)
 - Plugin registry for extending the library without touching core code
 - Immutable Pydantic models throughout — every "mutation" returns a new object
 
@@ -200,14 +200,32 @@ print(f"Max floor area: {land.max_floor_area_m2:.1f} m²")
 building = Building().with_land(land)
 ```
 
-### Export to DXF
+### DXF round-trip (read + write)
 
 ```python
 # Requires: pip install "archit-app[io]"
-from archit_app.io.dxf import save_building_dxf
+from archit_app.io.dxf import (
+    save_building_dxf, building_from_dxf,
+    save_level_dxf, level_from_dxf,
+)
 
+# Export
 save_building_dxf(building, "my_house.dxf")
+
+# Import back — auto-detects archit-app's FP_* layer convention
+restored = building_from_dxf("my_house.dxf")
+
+# Import a single level, override defaults
+level = level_from_dxf("floor_plan.dxf", wall_height=3.5, wall_thickness=0.25)
+
+# Generic DXF with custom layer names
+level = level_from_dxf(
+    "autocad_drawing.dxf",
+    layer_mapping={"A-WALL": "walls", "A-FLOR-PATT": "rooms"},
+)
 ```
+
+Recognised element types in `layer_mapping`: `"walls"`, `"rooms"`, `"openings"`, `"columns"`.
 
 ### Export to IFC 4.x
 
@@ -470,7 +488,7 @@ archit_app/
 │                            SiteContext, StructuralGrid
 ├── analysis/     Layer 6 — topology, circulation, area, compliance,
 │                            daylighting, visibility
-├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF
+├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF (read+write), IFC export
 ├── core/         Registry — plugin/extension system
 └── utils/        Unit helpers
 ```
