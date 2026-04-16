@@ -34,7 +34,7 @@ pip install archit-app
   - Zoning compliance checker (FAR, lot coverage, height, setbacks)
   - Daylighting and solar orientation report per room
   - Isovist (visibility polygon) from any viewpoint
-- I/O: JSON (fully round-trippable), SVG, GeoJSON, DXF (optional)
+- I/O: JSON (fully round-trippable), SVG, GeoJSON, DXF (optional), **IFC 4.x export** (optional, via `ifcopenshell`)
 - Plugin registry for extending the library without touching core code
 - Immutable Pydantic models throughout — every "mutation" returns a new object
 
@@ -50,6 +50,12 @@ For DXF and SVG export support:
 
 ```bash
 pip install "archit-app[io]"
+```
+
+For IFC export (open BIM standard — Revit, ArchiCAD, FreeCAD compatible):
+
+```bash
+pip install "archit-app[ifc]"
 ```
 
 For image and panorama support (coming in a future release):
@@ -201,6 +207,27 @@ from archit_app.io.dxf import save_building_dxf
 
 save_building_dxf(building, "my_house.dxf")
 ```
+
+### Export to IFC 4.x
+
+```python
+# Requires: pip install "archit-app[ifc]"
+from archit_app.io.ifc import building_to_ifc, save_building_ifc
+
+# Get the ifcopenshell model object (for further manipulation)
+model = building_to_ifc(building)
+print(model.by_type("IfcWall"))       # list all exported walls
+print(model.by_type("IfcSpace"))      # list all exported rooms
+model.write("my_house.ifc")           # write to disk
+
+# Or use the one-line convenience function
+save_building_ifc(building, "my_house.ifc")
+```
+
+Exported to IFC: walls (`IfcWall`), rooms (`IfcSpace`), doors/windows (`IfcDoor`/`IfcWindow`),
+columns (`IfcColumn`), slabs (`IfcSlab`), staircases (`IfcStair`) — all under the full
+`IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey` hierarchy.
+The IFC file can be opened in Revit, ArchiCAD, FreeCAD, and any other IFC 4-compliant viewer.
 
 ### Vertical circulation and structural elements
 
@@ -441,11 +468,11 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Layer 2 — Elements (structural) | Done | Slab, Beam, StructuralGrid |
 | Layer 2 — Wall joining | Done | `miter_join`, `butt_join`, `join_walls` |
 | Layer 3 — Building | Done | Level, Building, SiteContext, Land, Setbacks, ZoningInfo |
-| Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF |
+| Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF, IFC 4.x |
 | Layer 6 — Analysis | Done | Topology graph, egress, area validation, zoning compliance, daylighting, isovist |
 | CoordinateConverter | Done | Graph-based multi-CRS path-finding converter; `Point2D.to()` |
 | NURBS evaluator | Planned | Full Cox–de Boor evaluation for curved walls |
-| IFC export | Planned | IFC 4.x via ifcopenshell |
+| IFC export | Done | IFC 4.x write via ifcopenshell; walls, rooms, doors, columns, slabs, stairs |
 | DXF import | Planned | Round-trip DXF support |
 | PDF / raster export | Planned | Print-ready output at specified DPI/scale |
 | Layer 4 — Image | Planned | Panorama, rectification, camera calibration |

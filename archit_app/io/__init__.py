@@ -2,10 +2,11 @@
 I/O layer for the floorplan package.
 
 Available formats:
-  - JSON  (canonical, fully round-trippable)   archit_app.io.json_schema
-  - SVG   (2D rendering, no extra deps)        archit_app.io.svg
-  - GeoJSON (GIS export, no extra deps)        archit_app.io.geojson
-  - DXF   (AutoCAD, requires ezdxf)            archit_app.io.dxf
+  - JSON    (canonical, fully round-trippable)   archit_app.io.json_schema
+  - SVG     (2D rendering, no extra deps)        archit_app.io.svg
+  - GeoJSON (GIS export, no extra deps)          archit_app.io.geojson
+  - DXF     (AutoCAD, requires ezdxf)            archit_app.io.dxf
+  - IFC 4.x (open BIM, requires ifcopenshell)    archit_app.io.ifc
 
 Quick access:
 """
@@ -55,4 +56,6 @@ __all__ = [
     "save_building_geojson",
     # DXF (imported separately to avoid hard dependency)
     # from archit_app.io.dxf import save_building_dxf
+    # IFC (imported separately to avoid hard dependency)
+    # from archit_app.io.ifc import save_building_ifc
 ]

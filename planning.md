@@ -521,7 +521,7 @@ Users should never have to think about CRS unless they're doing something unusua
 | SVG | No | Yes | Rooms, walls, openings, columns, scale bar |
 | GeoJSON | No | Yes | FeatureCollection per level |
 | DXF | **No** | Yes | `ezdxf` required; write-only |
-| IFC | **No** | **No** | Not started |
+| IFC | **No** | Yes | Write-only IFC 4.x; `ifcopenshell` required |
 | PDF | **No** | **No** | Not started |
 | PNG / raster | **No** | **No** | `pillow`/`opencv` listed as optional deps but unused |
 
@@ -632,10 +632,13 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 
 #### P3 — I/O Gaps
 
-14. **IFC export** (and eventually import)
-    - Identified in the original plan as "most important long-term"
-    - Requires `ifcopenshell`; enables interoperability with Revit, ArchiCAD, FreeCAD
-    - Even write-only IFC 4.x support (walls, rooms, openings) would be immediately useful to AEC professionals
+14. ~~**IFC export**~~ — **Done** (`io/ifc.py`, 2026-04-15)
+    - Write-only IFC 4.x via `ifcopenshell` (optional dep: `pip install archit-app[ifc]`)
+    - Exports: `IfcWall`, `IfcSpace` (rooms), `IfcDoor`, `IfcWindow`, `IfcColumn`, `IfcSlab`, `IfcStair`
+    - Full spatial hierarchy: `IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey` (one per Level)
+    - Stable GUIDs derived from element UUIDs; re-export always yields the same IFC GlobalIds
+    - `building_to_ifc(building) → ifcopenshell.file`, `save_building_ifc(building, path)`
+    - 28 tests in `tests/io/test_ifc.py` (2 always-run guard tests + 26 skipped until `ifcopenshell` installed)
 
 15. **DXF import**
     - Currently write-only; reading DXF is needed to work with existing drawings
@@ -691,7 +694,7 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 2. ✓ Room adjacency graph, egress, area validation, compliance, daylighting, isovist  (done 2026-04-14)
 3. ✓ Zoning compliance checker          — closed as part of P2 analysis layer
 4. ✓ CoordinateConverter                — done 2026-04-15  (geometry/converter.py)
-5. IFC export                         — industry interoperability
+5. ✓ IFC export                         — done 2026-04-15  (io/ifc.py)
 6. ✓ Egress / circulation analysis      — done as part of P2
 7. NURBS evaluator                    — completes the curve layer
 8. DXF import                         — round-trip DXF support
