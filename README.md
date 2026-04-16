@@ -65,7 +65,7 @@ For image and panorama support (coming in a future release):
 pip install "archit-app[image]"
 ```
 
-For graph-based analysis (coming in a future release):
+For graph-based analysis (room adjacency, egress path-finding):
 
 ```bash
 pip install "archit-app[analysis]"
@@ -74,7 +74,7 @@ pip install "archit-app[analysis]"
 For all optional dependencies:
 
 ```bash
-pip install "archit-app[io,image,analysis]"
+pip install "archit-app[io,ifc,image,analysis]"
 ```
 
 **Requirements:** Python 3.11+, pydantic ≥ 2.0, shapely ≥ 2.0, numpy ≥ 1.26

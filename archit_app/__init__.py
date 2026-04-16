@@ -49,7 +49,7 @@ from archit_app.building.grid import StructuralGrid, GridAxis
 
 from archit_app.core.registry import register, get, list_registered, get_all
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # Geometry
