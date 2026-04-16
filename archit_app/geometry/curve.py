@@ -211,10 +211,20 @@ class BezierCurve(CurveBase):
 
 class NURBSCurve(CurveBase):
     """
-    Non-Uniform Rational B-Spline curve.
+    Non-Uniform Rational B-Spline (NURBS) curve.
 
-    Stub implementation for v0.1 — to_polyline falls back to linear interpolation
-    between control points until a full NURBS evaluator is implemented.
+    Evaluation uses the de Boor algorithm in homogeneous coordinates for
+    exact rational curve evaluation — no approximation, no linear fallback.
+
+    Attributes:
+        control_points: ordered sequence of 2-D control points
+        weights:        one positive weight per control point (1.0 = unweighted B-spline)
+        knots:          non-decreasing knot vector; must satisfy
+                        ``len(knots) == len(control_points) + degree + 1``
+        degree:         polynomial degree — 1 = linear, 2 = quadratic, 3 = cubic …
+
+    For the common case of smooth curves that pass through the first and last
+    control points, use the :meth:`clamped_uniform` factory.
     """
 
     control_points: tuple[Point2D, ...]
@@ -224,38 +234,155 @@ class NURBSCurve(CurveBase):
 
     @model_validator(mode="after")
     def _validate(self) -> "NURBSCurve":
-        if len(self.weights) != len(self.control_points):
-            raise ValueError("weights must have same length as control_points.")
-        for p in self.control_points:
-            require_same_crs(self.crs, p.crs, "construct NURBSCurve")
+        n = len(self.control_points)
+        p = self.degree
+        if p < 1:
+            raise ValueError(f"NURBS degree must be >= 1, got {p}.")
+        if n < p + 1:
+            raise ValueError(
+                f"NURBS degree {p} requires at least {p + 1} control points, got {n}."
+            )
+        if len(self.weights) != n:
+            raise ValueError(
+                f"weights length ({len(self.weights)}) must equal "
+                f"number of control points ({n})."
+            )
+        expected = n + p + 1
+        if len(self.knots) != expected:
+            raise ValueError(
+                f"Knot vector length must be {expected} "
+                f"(= {n} control points + {p} degree + 1), got {len(self.knots)}."
+            )
+        for i in range(len(self.knots) - 1):
+            if self.knots[i] > self.knots[i + 1] + 1e-12:
+                raise ValueError(
+                    f"Knot vector must be non-decreasing; "
+                    f"knots[{i}]={self.knots[i]} > knots[{i+1}]={self.knots[i + 1]}."
+                )
+        for i, w in enumerate(self.weights):
+            if w <= 0:
+                raise ValueError(f"All weights must be positive; weights[{i}] = {w}.")
+        for pt in self.control_points:
+            require_same_crs(self.crs, pt.crs, "construct NURBSCurve")
         return self
 
-    def to_polyline(self, resolution: int = 64) -> tuple[Point2D, ...]:
-        # Stub: linear interpolation between control points
-        # TODO: implement proper NURBS evaluation in a future release
-        pts = self.control_points
-        if len(pts) == 0:
-            return ()
-        if len(pts) == 1:
-            return pts
+    # ------------------------------------------------------------------
+    # Domain
+    # ------------------------------------------------------------------
 
-        result = []
-        n = len(pts) - 1
-        for i in range(resolution + 1):
-            t = i / resolution
-            seg_t = t * n
-            seg_idx = min(int(seg_t), n - 1)
-            local_t = seg_t - seg_idx
-            p0 = pts[seg_idx]
-            p1 = pts[seg_idx + 1]
-            result.append(
-                Point2D(
-                    x=(1 - local_t) * p0.x + local_t * p1.x,
-                    y=(1 - local_t) * p0.y + local_t * p1.y,
-                    crs=self.crs,
-                )
-            )
-        return tuple(result)
+    @property
+    def domain(self) -> tuple[float, float]:
+        """Valid parameter range ``(t_min, t_max)`` derived from the knot vector."""
+        p = self.degree
+        n = len(self.control_points) - 1
+        return (self.knots[p], self.knots[n + 1])
+
+    # ------------------------------------------------------------------
+    # Evaluation
+    # ------------------------------------------------------------------
+
+    def _find_span(self, t: float) -> int:
+        """
+        Return knot-span index *k* such that ``knots[k] <= t < knots[k+1]``.
+
+        For ``t == t_max`` (the endpoint), the last non-empty interior span is
+        returned so that the curve evaluates to the final control point.
+        """
+        p = self.degree
+        n = len(self.control_points) - 1
+        t_min, t_max = self.domain
+
+        if t >= t_max:
+            # Walk back past any repeated trailing knots.
+            k = n
+            while k > p and self.knots[k] >= t_max:
+                k -= 1
+            return k
+
+        # Binary search for the span containing t.
+        lo, hi = p, n + 1
+        while lo + 1 < hi:
+            mid = (lo + hi) // 2
+            if self.knots[mid] <= t:
+                lo = mid
+            else:
+                hi = mid
+        return lo
+
+    def _evaluate(self, t_param: float) -> Point2D:
+        """
+        Evaluate the NURBS curve at parameter *t_param* using the de Boor
+        algorithm in homogeneous coordinates.
+
+        The homogeneous control points ``[w·x, w·y, w]`` are recursed through
+        the de Boor scheme; the result is projected back to Euclidean 2-D by
+        dividing by the final homogeneous weight.
+        """
+        p = self.degree
+        t_min, t_max = self.domain
+        t = max(t_min, min(t_max, t_param))
+
+        k = self._find_span(t)
+
+        # Initialise de Boor array in homogeneous coordinates.
+        # d[j - (k-p)] ≡ d_j^{(0)} = [w_j·x_j, w_j·y_j, w_j]
+        d: list[list[float]] = []
+        for j in range(k - p, k + 1):
+            wi = self.weights[j]
+            d.append([
+                self.control_points[j].x * wi,
+                self.control_points[j].y * wi,
+                wi,
+            ])
+
+        offset = k - p  # maps global index j → d[j - offset]
+
+        # de Boor recurrence — update right-to-left within each level r so
+        # that d[j-1] retains its level-(r-1) value when d[j] is computed.
+        for r in range(1, p + 1):
+            for j in range(k, k - p + r - 1, -1):
+                d_idx = j - offset
+                denom = self.knots[j + p - r + 1] - self.knots[j]
+                alpha = (t - self.knots[j]) / denom if abs(denom) > 1e-12 else 0.0
+                for comp in range(3):
+                    d[d_idx][comp] = (
+                        (1.0 - alpha) * d[d_idx - 1][comp]
+                        + alpha * d[d_idx][comp]
+                    )
+
+        hw = d[p][2]
+        if abs(hw) < 1e-12:
+            return self.control_points[k]  # degenerate — fall back to control point
+        return Point2D(x=d[p][0] / hw, y=d[p][1] / hw, crs=self.crs)
+
+    # ------------------------------------------------------------------
+    # CurveBase interface
+    # ------------------------------------------------------------------
+
+    def to_polyline(self, resolution: int = 64) -> tuple[Point2D, ...]:
+        """
+        Sample the NURBS curve into ``resolution + 1`` evenly-spaced points.
+
+        Uses exact Cox–de Boor evaluation — not linear interpolation.
+        For clamped knot vectors the first and last returned points coincide
+        with the first and last control points respectively.
+        """
+        if len(self.control_points) == 0:
+            return ()
+        t_min, t_max = self.domain
+        span = t_max - t_min
+        return tuple(
+            self._evaluate(t_min + span * i / resolution)
+            for i in range(resolution + 1)
+        )
+
+    @property
+    def start_point(self) -> Point2D:
+        return self._evaluate(self.domain[0])
+
+    @property
+    def end_point(self) -> Point2D:
+        return self._evaluate(self.domain[1])
 
     def transformed(self, t: "Transform2D") -> "NURBSCurve":
         new_pts = tuple(p.transformed(t) for p in self.control_points)
@@ -265,4 +392,71 @@ class NURBSCurve(CurveBase):
             knots=self.knots,
             degree=self.degree,
             crs=self.crs,
+        )
+
+    # ------------------------------------------------------------------
+    # Factory
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def clamped_uniform(
+        cls,
+        control_points: tuple[Point2D, ...],
+        degree: int = 3,
+        weights: tuple[float, ...] | None = None,
+        crs: CoordinateSystem = WORLD,
+    ) -> "NURBSCurve":
+        """
+        Create a clamped NURBS with a uniform interior knot vector.
+
+        A *clamped* knot vector has ``degree + 1`` repeated knots at each end,
+        which guarantees that the curve passes through the first and last
+        control points — the usual expectation for architectural curves.
+
+        Interior knots are distributed uniformly in the open interval (0, 1).
+
+        Args:
+            control_points: at least ``degree + 1`` points
+            degree:         polynomial degree (default 3 = cubic)
+            weights:        one weight per control point; defaults to all 1.0
+                            (giving a plain B-spline)
+            crs:            coordinate system
+
+        Example::
+
+            pts = (
+                Point2D(0, 0, crs=WORLD),
+                Point2D(1, 2, crs=WORLD),
+                Point2D(3, 2, crs=WORLD),
+                Point2D(4, 0, crs=WORLD),
+            )
+            curve = NURBSCurve.clamped_uniform(pts, degree=3)
+            polyline = curve.to_polyline(resolution=64)
+        """
+        n = len(control_points)
+        if n < degree + 1:
+            raise ValueError(
+                f"Need at least {degree + 1} control points for degree {degree}."
+            )
+        if weights is None:
+            weights = tuple(1.0 for _ in control_points)
+
+        # Number of interior (free) knots = n - 1 - degree
+        num_interior = n - 1 - degree
+        if num_interior <= 0:
+            interior: tuple[float, ...] = ()
+        else:
+            interior = tuple(i / (num_interior + 1) for i in range(1, num_interior + 1))
+
+        knots: tuple[float, ...] = (
+            tuple(0.0 for _ in range(degree + 1))
+            + interior
+            + tuple(1.0 for _ in range(degree + 1))
+        )
+        return cls(
+            control_points=control_points,
+            weights=weights,
+            knots=knots,
+            degree=degree,
+            crs=crs,
         )

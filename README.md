@@ -22,6 +22,7 @@ pip install archit-app
 
 - Geometry primitives with coordinate system (CRS) tagging — mixing spaces raises an error immediately
 - **`CoordinateConverter`** — graph-based multi-CRS path-finding; `Point2D.to(target, conv)`; `build_default_converter()` for screen/image/world viewports
+- **Full NURBS evaluator** — `NURBSCurve` uses the Cox–de Boor algorithm (exact rational evaluation, not linear interpolation); `clamped_uniform()` factory for smooth curves through endpoints; supports exact conic sections via rational weights
 - Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns, **staircases, slabs, ramps, elevators, beams**
 - **Wall joining** — `miter_join()`, `butt_join()`, `join_walls()` for clean corner geometry
 - **Structural grid** — named axes (A–H, 1–8), intersection queries, and point snapping
@@ -314,6 +315,41 @@ walls = [
 joined_walls = join_walls(walls)
 ```
 
+### NURBS curved walls
+
+```python
+import math
+from archit_app import Point2D, WORLD
+from archit_app.geometry.curve import NURBSCurve
+from archit_app import Wall
+
+# Smooth cubic curve through 5 control points (clamped — passes through endpoints)
+ctrl = (
+    Point2D(0, 0, crs=WORLD),
+    Point2D(1, 2, crs=WORLD),
+    Point2D(2, 0, crs=WORLD),
+    Point2D(3, 2, crs=WORLD),
+    Point2D(4, 0, crs=WORLD),
+)
+curve = NURBSCurve.clamped_uniform(ctrl, degree=3)
+
+# Sample 64 points along the curve (exact, not linear interpolation)
+polyline = curve.to_polyline(resolution=64)
+print(f"Arc length ≈ {curve.length():.3f} m")
+
+# Exact quarter-circle arc via rational NURBS (w = cos(π/4) on the middle point)
+w = math.cos(math.pi / 4)
+circle_pts = (
+    Point2D(1, 0, crs=WORLD),
+    Point2D(1, 1, crs=WORLD),
+    Point2D(0, 1, crs=WORLD),
+)
+quarter_circle = NURBSCurve.clamped_uniform(circle_pts, degree=2, weights=(1.0, w, 1.0))
+
+# Use a NURBS curve as wall geometry
+wall = Wall(geometry=curve.to_polygon(resolution=32), thickness=0.2, height=3.0)
+```
+
 ### Coordinate conversion
 
 ```python
@@ -471,7 +507,7 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF, IFC 4.x |
 | Layer 6 — Analysis | Done | Topology graph, egress, area validation, zoning compliance, daylighting, isovist |
 | CoordinateConverter | Done | Graph-based multi-CRS path-finding converter; `Point2D.to()` |
-| NURBS evaluator | Planned | Full Cox–de Boor evaluation for curved walls |
+| NURBS evaluator | Done | Full Cox–de Boor evaluation; `clamped_uniform()` factory; exact conic sections |
 | IFC export | Done | IFC 4.x write via ifcopenshell; walls, rooms, doors, columns, slabs, stairs |
 | DXF import | Planned | Round-trip DXF support |
 | PDF / raster export | Planned | Print-ready output at specified DPI/scale |

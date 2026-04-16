@@ -488,7 +488,7 @@ Users should never have to think about CRS unless they're doing something unusua
 - `BoundingBox2D`, `BoundingBox3D`
 - `Transform2D` — 3×3 homogeneous, composable via `@`, with inverse
 - `ArcCurve`, `BezierCurve` (quadratic and cubic via De Casteljau) — fully working
-- `NURBSCurve` — **stub only**; `to_polyline()` does linear interpolation between control points; full NURBS evaluator is a TODO
+- `NURBSCurve` — full Cox–de Boor evaluator; `clamped_uniform()` factory; exact rational evaluation; `domain` property; strengthened validation
 - `CoordinateSystem` with singletons `WORLD`, `SCREEN`, `IMAGE`, `WGS84`; CRS equality enforced on arithmetic
 - `CoordinateConverter` — graph-based BFS path-finding between registered CRS; `register()`, `convert()`, `can_convert()`
 - `build_default_converter()` — factory pre-loading SCREEN ↔ IMAGE ↔ WORLD for standard viewports
@@ -658,9 +658,16 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - `ConversionPathNotFoundError` — raised when no registered path exists
     - Multi-hop (e.g. IMAGE → WORLD via SCREEN) resolved automatically; 18 tests in `tests/geometry/test_converter.py`
 
-19. **NURBS evaluator**
-    - `NURBSCurve.to_polyline()` is a linear interpolation stub
-    - Proper Cox–de Boor evaluation needed for smooth curved walls
+19. ~~**NURBS evaluator**~~ — **Done** (`geometry/curve.py`, 2026-04-15)
+    - Full Cox–de Boor algorithm in homogeneous coordinates (de Boor recurrence, O(p²) per point)
+    - `NURBSCurve._find_span()` — binary-search knot span with endpoint clamping
+    - `NURBSCurve._evaluate(t)` — exact rational evaluation; divides homogeneous result by weight
+    - `NURBSCurve.to_polyline(resolution)` — samples the valid domain [t_min, t_max]
+    - `NURBSCurve.domain` property returning `(t_min, t_max)` from the knot vector
+    - `NURBSCurve.start_point` / `end_point` overrides (evaluate at domain boundaries)
+    - `NURBSCurve.clamped_uniform(pts, degree, weights)` factory — auto-generates the standard clamped knot vector; guarantees curve passes through first/last control points
+    - Strengthened validation: knot vector length, non-decreasing check, positive weights
+    - 38 tests in `tests/geometry/test_nurbs.py` covering validation, Bézier equivalence, rational weights, exact conic sections, multi-span continuity, transforms
 
 20. **`Polyline` geometry type**
     - No first-class polyline; sequences of line segments are currently just `tuple[Point2D]` with no type or methods
@@ -696,7 +703,7 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 4. ✓ CoordinateConverter                — done 2026-04-15  (geometry/converter.py)
 5. ✓ IFC export                         — done 2026-04-15  (io/ifc.py)
 6. ✓ Egress / circulation analysis      — done as part of P2
-7. NURBS evaluator                    — completes the curve layer
+7. ✓ NURBS evaluator                    — done 2026-04-15  (geometry/curve.py)
 8. DXF import                         — round-trip DXF support
 9. PDF / raster export                — standard deliverable formats
 10. image/ module (panorama)          — most complex; do last
