@@ -489,7 +489,10 @@ Users should never have to think about CRS unless they're doing something unusua
 - `Transform2D` — 3×3 homogeneous, composable via `@`, with inverse
 - `ArcCurve`, `BezierCurve` (quadratic and cubic via De Casteljau) — fully working
 - `NURBSCurve` — **stub only**; `to_polyline()` does linear interpolation between control points; full NURBS evaluator is a TODO
-- `CoordinateSystem` with singletons `WORLD`, `SCREEN`, `IMAGE`, `WGS84`; CRS equality is enforced on arithmetic but **no `CoordinateConverter` exists** — cross-CRS conversion is not implemented
+- `CoordinateSystem` with singletons `WORLD`, `SCREEN`, `IMAGE`, `WGS84`; CRS equality enforced on arithmetic
+- `CoordinateConverter` — graph-based BFS path-finding between registered CRS; `register()`, `convert()`, `can_convert()`
+- `build_default_converter()` — factory pre-loading SCREEN ↔ IMAGE ↔ WORLD for standard viewports
+- `Point2D.to(target_crs, converter)` — one-call CRS conversion
 
 #### Architectural Elements — partial
 | Element | Status |
@@ -603,6 +606,8 @@ All P1 items were implemented in commit `710e939` (2026-04-14).
 
 All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" above for details.
 
+#### P4 (partial) — CoordinateConverter ✓ Complete
+
 8. ~~**Room adjacency graph**~~ — **Done** (`analysis/topology.py`)
    - Buffer-based boundary proximity; detects openings on shared walls
    - `build_adjacency_graph()`, `connected_components()`, `rooms_adjacent_to()`
@@ -643,10 +648,12 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 
 #### P4 — Geometry & Infrastructure Gaps
 
-18. **`CoordinateConverter`** (planned in CRS section above, not implemented)
-    - CRS is stored and checked for equality, but there is no graph-based path-finding converter
-    - Without it, any multi-CRS workflow requires manual chaining of transforms
-    - Impact: panorama ↔ world ↔ screen conversions are impossible with the current API
+18. ~~**`CoordinateConverter`**~~ — **Done** (`geometry/converter.py`, 2026-04-15)
+    - `CoordinateConverter` — graph-based BFS path-finding; `register(src, dst, transform)` stores forward + auto-inverse
+    - `build_default_converter(viewport_height_px, pixels_per_meter, canvas_origin_world)` — pre-loads SCREEN ↔ IMAGE ↔ WORLD
+    - `Point2D.to(target_crs, converter)` — one-call CRS conversion on any point
+    - `ConversionPathNotFoundError` — raised when no registered path exists
+    - Multi-hop (e.g. IMAGE → WORLD via SCREEN) resolved automatically; 18 tests in `tests/geometry/test_converter.py`
 
 19. **NURBS evaluator**
     - `NURBSCurve.to_polyline()` is a linear interpolation stub
@@ -682,10 +689,10 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 ```
 1. ✓ Staircase, Slab, Ramp, Elevator, Beam, StructuralGrid, wall joining  (done 2026-04-14)
 2. ✓ Room adjacency graph, egress, area validation, compliance, daylighting, isovist  (done 2026-04-14)
-3. Zoning compliance checker          — closes the Land/ZoningInfo loop
-4. CoordinateConverter                — makes multi-CRS workflows usable
+3. ✓ Zoning compliance checker          — closed as part of P2 analysis layer
+4. ✓ CoordinateConverter                — done 2026-04-15  (geometry/converter.py)
 5. IFC export                         — industry interoperability
-6. Egress / circulation analysis      — builds on adjacency graph
+6. ✓ Egress / circulation analysis      — done as part of P2
 7. NURBS evaluator                    — completes the curve layer
 8. DXF import                         — round-trip DXF support
 9. PDF / raster export                — standard deliverable formats

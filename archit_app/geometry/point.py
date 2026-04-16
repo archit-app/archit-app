@@ -22,6 +22,7 @@ from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
 from archit_app.geometry.vector import Vector2D, Vector3D
 
 if TYPE_CHECKING:
+    from archit_app.geometry.converter import CoordinateConverter
     from archit_app.geometry.transform import Transform2D
 
 
@@ -69,6 +70,13 @@ class Point2D(BaseModel, frozen=True):
     def midpoint(self, other: "Point2D") -> "Point2D":
         require_same_crs(self.crs, other.crs, "midpoint")
         return Point2D(x=(self.x + other.x) / 2, y=(self.y + other.y) / 2, crs=self.crs)
+
+    def to(
+        self, target: CoordinateSystem, converter: "CoordinateConverter"
+    ) -> "Point2D":
+        """Convert this point to *target* CRS using *converter*."""
+        arr = converter.convert(self.as_array(), self.crs, target)
+        return Point2D(x=float(arr[0]), y=float(arr[1]), crs=target)
 
     def transformed(self, t: "Transform2D") -> "Point2D":
         result = t.apply_to_array(self.as_array().reshape(1, 2))

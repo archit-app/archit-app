@@ -10,6 +10,7 @@ from archit_app.geometry.crs import (
     require_same_crs,
 )
 from archit_app.geometry.transform import Transform2D
+from archit_app.geometry.converter import CoordinateConverter, ConversionPathNotFoundError, build_default_converter
 from archit_app.geometry.vector import Vector2D, Vector3D
 from archit_app.geometry.point import Point2D, Point3D
 from archit_app.geometry.bbox import BoundingBox2D, BoundingBox3D
@@ -27,6 +28,9 @@ __all__ = [
     "WGS84",
     "require_same_crs",
     "Transform2D",
+    "CoordinateConverter",
+    "ConversionPathNotFoundError",
+    "build_default_converter",
     "Vector2D",
     "Vector3D",
     "Point2D",

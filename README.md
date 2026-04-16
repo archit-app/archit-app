@@ -21,6 +21,7 @@ pip install archit-app
 **Key features:**
 
 - Geometry primitives with coordinate system (CRS) tagging — mixing spaces raises an error immediately
+- **`CoordinateConverter`** — graph-based multi-CRS path-finding; `Point2D.to(target, conv)`; `build_default_converter()` for screen/image/world viewports
 - Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns, **staircases, slabs, ramps, elevators, beams**
 - **Wall joining** — `miter_join()`, `butt_join()`, `join_walls()` for clean corner geometry
 - **Structural grid** — named axes (A–H, 1–8), intersection queries, and point snapping
@@ -286,6 +287,37 @@ walls = [
 joined_walls = join_walls(walls)
 ```
 
+### Coordinate conversion
+
+```python
+from archit_app import build_default_converter, SCREEN, WORLD, IMAGE, Point2D
+
+# Build the standard viewport converter (800×600 canvas, 50 px/m)
+conv = build_default_converter(
+    viewport_height_px=600.0,
+    pixels_per_meter=50.0,
+    canvas_origin_world=(0.0, 0.0),   # world coords of canvas bottom-left
+)
+
+# Convert a screen click to a world position
+screen_click = Point2D(x=400.0, y=300.0, crs=SCREEN)
+world_pos = screen_click.to(WORLD, conv)
+print(world_pos)   # Point2D(x=8.0, y=6.0, crs='world')
+
+# Round-trip back to screen
+back = world_pos.to(SCREEN, conv)
+
+# IMAGE → WORLD works too — resolved via BFS through SCREEN
+import numpy as np
+world_pts = conv.convert(np.array([[400.0, 300.0]]), IMAGE, WORLD)
+
+# Extend with custom spaces: register any transform and multi-hop paths
+# are found automatically
+from archit_app import CoordinateConverter, WGS84
+conv.register(WORLD, WGS84, some_georeference_transform)
+# Now IMAGE → WGS84 resolves as IMAGE → SCREEN → WORLD → WGS84
+```
+
 ### Spatial analysis
 
 ```python
@@ -367,7 +399,8 @@ The library is structured in layers:
 
 ```
 archit_app/
-├── geometry/     Layer 1 — CRS, points, vectors, transforms, polygons, curves
+├── geometry/     Layer 1 — CRS, points, vectors, transforms, polygons, curves,
+│                            CoordinateConverter, build_default_converter
 ├── elements/     Layer 2 — Wall, Room, Opening, Column, Staircase, Slab,
 │                            Ramp, Elevator, Beam, wall_join utilities
 ├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building,
@@ -410,7 +443,7 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Layer 3 — Building | Done | Level, Building, SiteContext, Land, Setbacks, ZoningInfo |
 | Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF |
 | Layer 6 — Analysis | Done | Topology graph, egress, area validation, zoning compliance, daylighting, isovist |
-| CoordinateConverter | Planned | Graph-based multi-CRS path-finding converter |
+| CoordinateConverter | Done | Graph-based multi-CRS path-finding converter; `Point2D.to()` |
 | NURBS evaluator | Planned | Full Cox–de Boor evaluation for curved walls |
 | IFC export | Planned | IFC 4.x via ifcopenshell |
 | DXF import | Planned | Round-trip DXF support |
