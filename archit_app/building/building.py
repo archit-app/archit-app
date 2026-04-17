@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from archit_app.building.grid import StructuralGrid
 from archit_app.building.land import Land
 from archit_app.building.level import Level
-from archit_app.building.site import SiteContext
 from archit_app.elements.base import Element
 from archit_app.elements.elevator import Elevator
 
@@ -43,10 +42,14 @@ class Building(BaseModel):
 
     metadata: BuildingMetadata = Field(default_factory=BuildingMetadata)
     levels: tuple[Level, ...] = ()
-    site: SiteContext | None = None
     land: Land | None = None
     elevators: tuple[Elevator, ...] = ()
     grid: StructuralGrid | None = None
+
+    @property
+    def site(self) -> Land | None:
+        """Alias for ``land``.  Provided for backward compatibility."""
+        return self.land
 
     # ------------------------------------------------------------------
     # Queries
@@ -98,8 +101,9 @@ class Building(BaseModel):
         new_meta = self.metadata.model_copy(update=kwargs)
         return self.model_copy(update={"metadata": new_meta})
 
-    def with_site(self, site: SiteContext) -> "Building":
-        return self.model_copy(update={"site": site})
+    def with_site(self, site: Land) -> "Building":
+        """Set the site context.  Alias for ``with_land()``; kept for backward compatibility."""
+        return self.model_copy(update={"land": site})
 
     def with_land(self, land: Land) -> "Building":
         return self.model_copy(update={"land": land})

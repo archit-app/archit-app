@@ -28,7 +28,7 @@ pip install archit-app
 - **Wall joining** — `miter_join()`, `butt_join()`, `join_walls()` for clean corner geometry
 - **Structural grid** — named axes (A–H, 1–8), intersection queries, and point snapping
 - Multi-level building structure: `Level → Building`, with elevators and a grid attached at building level
-- **Land parcel model** — GPS coordinates, setbacks, buildable envelope, and an AI-agent context hook
+- **Land parcel model** — GPS coordinates, setbacks, buildable envelope, and an AI-agent context hook; `Land.minimal()` for orientation-only use; `SiteContext` is a backward-compatible alias for `Land`
 - **Spatial analysis** (`archit_app.analysis`):
   - Room adjacency graph and connected components (networkx)
   - Egress path finding and compliance reporting

@@ -694,9 +694,15 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - All types are CRS-tagged, immutable Pydantic models with `transformed()` support
     - Exported from `archit_app.geometry`; 64 tests in `tests/geometry/test_primitives.py`
 
-22. **`SiteContext` / `Land` consolidation**
-    - These two models partially overlap (both have `boundary`, `north_angle`, `address`, `epsg_code`)
-    - Consider merging or formally separating their responsibilities to avoid confusion
+22. ~~**`SiteContext` / `Land` consolidation**~~ — **Done** (2026-04-16)
+    - `Land` is now the single site model; `SiteContext` is a backward-compatible type alias (`SiteContext = Land`)
+    - `Land.boundary` is now optional (`Polygon2D | None = None`); all boundary-derived properties (`area_m2`, `perimeter_m`, `centroid`, `buildable_boundary`, etc.) return `None` when no boundary is set
+    - New `Land.minimal(north_angle, address, …)` factory replaces the old `SiteContext(north_angle=…)` pattern for orientation-only use
+    - `Building.site` removed as a field; replaced by a `@property` that returns `self.land` (backward compat)
+    - `Building.with_site()` delegates to `with_land()` (backward compat)
+    - JSON serialization writes `land` (full); deserialization reads `land` first, falls back to legacy `site` key
+    - `analysis/compliance.py` guards boundary-dependent checks with `land.boundary is not None`
+    - 13 new tests in `tests/building/test_land.py`
 
 #### P5 — Image / Panorama Layer (entire module missing)
 

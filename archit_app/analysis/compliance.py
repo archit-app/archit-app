@@ -87,7 +87,7 @@ def check_compliance(building, land) -> ComplianceReport:
     """
     report = ComplianceReport()
     zoning = land.zoning
-    lot_area = land.area_m2
+    lot_area = land.area_m2 or 0.0
 
     # ---- 1. Total gross floor area & FAR -----------------------------------
     total_gfa = sum(
@@ -134,7 +134,7 @@ def check_compliance(building, land) -> ComplianceReport:
         ))
 
     # ---- 4. Footprint within lot boundary -----------------------------------
-    if ground_footprint is not None:
+    if ground_footprint is not None and land.boundary is not None:
         lot_shape = land.boundary._to_shapely()
         within_lot = ground_footprint.within(lot_shape.buffer(0.01))  # 1 cm tolerance
         report.checks.append(ComplianceCheck(

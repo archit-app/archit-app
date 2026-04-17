@@ -199,12 +199,14 @@ class Land(BaseModel):
     """
     A land parcel — the geographic foundation for a building project.
 
-    The boundary is stored in WORLD CRS (meters, Y-up) for compatibility with
-    all architectural elements. The original GPS coordinates are preserved so
-    the parcel can be geo-referenced at any time.
+    ``boundary`` is optional so that a ``Land`` can represent a minimal site
+    context (orientation, address) even when no parcel geometry is available.
+    Use ``Land.from_latlon()`` or ``Land.from_polygon()`` for full parcels, and
+    ``Land.minimal()`` when only site orientation / address are needed.
 
     Attributes:
         boundary:       Lot boundary in local metric coordinates (WORLD CRS).
+                        ``None`` when only orientation/address are known.
         latlon_coords:  Original (lat, lon) pairs, if created from GPS.
         origin_lat:     Latitude of the local coordinate origin (degrees).
         origin_lon:     Longitude of the local coordinate origin (degrees).
@@ -218,7 +220,7 @@ class Land(BaseModel):
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
-    boundary: Polygon2D
+    boundary: Polygon2D | None = None
     latlon_coords: tuple[tuple[float, float], ...] | None = None
     origin_lat: float | None = None
     origin_lon: float | None = None
@@ -232,6 +234,34 @@ class Land(BaseModel):
     # ------------------------------------------------------------------
     # Factories
     # ------------------------------------------------------------------
+
+    @classmethod
+    def minimal(
+        cls,
+        *,
+        north_angle: float = 0.0,
+        address: str = "",
+        epsg_code: int | None = None,
+        elevation_m: float = 0.0,
+    ) -> "Land":
+        """
+        Create a Land with no parcel boundary — only site orientation metadata.
+
+        Use this when you know the building's address and orientation but don't
+        have (or need) a full lot boundary.  Boundary-dependent properties such
+        as ``area_m2`` will return ``None`` for instances created this way.
+
+        Example::
+
+            site = Land.minimal(north_angle=15.0, address="42 Elm Street")
+            building = Building().with_land(site)
+        """
+        return cls(
+            north_angle=north_angle,
+            address=address,
+            epsg_code=epsg_code,
+            elevation_m=elevation_m,
+        )
 
     @classmethod
     def from_latlon(
@@ -315,29 +345,37 @@ class Land(BaseModel):
     # ------------------------------------------------------------------
 
     @property
-    def area_m2(self) -> float:
-        """Total lot area in square meters."""
-        return self.boundary.area
+    def has_boundary(self) -> bool:
+        """True when a parcel boundary polygon is available."""
+        return self.boundary is not None
 
     @property
-    def perimeter_m(self) -> float:
-        """Lot perimeter in meters."""
-        return self.boundary.perimeter
+    def area_m2(self) -> float | None:
+        """Total lot area in square meters, or ``None`` if no boundary is set."""
+        return self.boundary.area if self.boundary is not None else None
 
     @property
-    def centroid(self) -> Point2D:
-        """Centroid of the lot boundary."""
-        return self.boundary.centroid
+    def perimeter_m(self) -> float | None:
+        """Lot perimeter in meters, or ``None`` if no boundary is set."""
+        return self.boundary.perimeter if self.boundary is not None else None
+
+    @property
+    def centroid(self) -> Point2D | None:
+        """Centroid of the lot boundary, or ``None`` if no boundary is set."""
+        return self.boundary.centroid if self.boundary is not None else None
 
     @property
     def centroid_latlon(self) -> tuple[float, float] | None:
         """
         (lat, lon) of the lot centroid, if GPS origin is available.
-        Returns None when the parcel was created from a metric polygon.
+        Returns None when the parcel has no boundary or was created from a
+        metric polygon without GPS origin.
         """
         if self.origin_lat is None or self.origin_lon is None:
             return None
         c = self.centroid
+        if c is None:
+            return None
         result = _local_meters_to_latlon(
             [(c.x, c.y)], self.origin_lat, self.origin_lon
         )
@@ -347,9 +385,10 @@ class Land(BaseModel):
     def latlon_boundary(self) -> list[tuple[float, float]] | None:
         """
         The lot boundary as (lat, lon) pairs, if GPS origin is available.
-        Returns None when the parcel was created from a metric polygon.
+        Returns None when the parcel has no boundary or was created from a
+        metric polygon without GPS origin.
         """
-        if self.origin_lat is None or self.origin_lon is None:
+        if self.boundary is None or self.origin_lat is None or self.origin_lon is None:
             return None
         pts = [(p.x, p.y) for p in self.boundary.exterior]
         return _local_meters_to_latlon(pts, self.origin_lat, self.origin_lon)
@@ -365,8 +404,10 @@ class Land(BaseModel):
         requirement. For precise per-face setbacks on irregular lots, apply
         setbacks manually per edge.
 
-        Returns None if the setback makes the parcel unbuildable.
+        Returns None if no boundary is set or if the setback makes the parcel unbuildable.
         """
+        if self.boundary is None:
+            return None
         max_sb = self.setbacks.max_setback
         if max_sb <= 0.0:
             return self.boundary
@@ -376,9 +417,11 @@ class Land(BaseModel):
             return None
 
     @property
-    def buildable_area_m2(self) -> float:
-        """Buildable envelope area in m² after applying setbacks."""
+    def buildable_area_m2(self) -> float | None:
+        """Buildable envelope area in m² after applying setbacks, or ``None`` if no boundary."""
         bb = self.buildable_boundary
+        if bb is None and self.boundary is None:
+            return None
         return bb.area if bb is not None else 0.0
 
     # ------------------------------------------------------------------
@@ -387,15 +430,15 @@ class Land(BaseModel):
 
     @property
     def max_floor_area_m2(self) -> float | None:
-        """Maximum total floor area permitted by FAR, if zoning is set."""
-        if self.zoning is None:
+        """Maximum total floor area permitted by FAR, if zoning and boundary are set."""
+        if self.zoning is None or self.area_m2 is None:
             return None
         return self.zoning.max_floor_area_m2(self.area_m2)
 
     @property
     def max_footprint_m2(self) -> float | None:
-        """Maximum ground footprint permitted by lot coverage, if zoning is set."""
-        if self.zoning is None:
+        """Maximum ground footprint permitted by lot coverage, if zoning and boundary are set."""
+        if self.zoning is None or self.area_m2 is None:
             return None
         return self.zoning.max_footprint_m2(self.area_m2)
 
@@ -421,11 +464,13 @@ class Land(BaseModel):
         """
         ctx: dict[str, Any] = {
             "address": self.address,
-            "area_m2": round(self.area_m2, 2),
-            "perimeter_m": round(self.perimeter_m, 2),
             "north_angle_deg": self.north_angle,
             "elevation_m": self.elevation_m,
         }
+        if self.area_m2 is not None:
+            ctx["area_m2"] = round(self.area_m2, 2)
+        if self.perimeter_m is not None:
+            ctx["perimeter_m"] = round(self.perimeter_m, 2)
 
         if self.latlon_coords is not None:
             ctx["latlon_coords"] = [list(c) for c in self.latlon_coords]
@@ -447,7 +492,9 @@ class Land(BaseModel):
             "left": self.setbacks.left,
             "right": self.setbacks.right,
         }
-        ctx["buildable_area_m2"] = round(self.buildable_area_m2, 2)
+        ba = self.buildable_area_m2
+        if ba is not None:
+            ctx["buildable_area_m2"] = round(ba, 2)
 
         if self.zoning is not None:
             z = self.zoning

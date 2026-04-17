@@ -220,3 +220,152 @@ def test_building_with_land():
 
 def test_building_land_defaults_none():
     assert Building().land is None
+
+
+# ---------------------------------------------------------------------------
+# Land.minimal() — no boundary
+# ---------------------------------------------------------------------------
+
+
+def test_minimal_factory():
+    land = Land.minimal(north_angle=15.0, address="42 Elm Street")
+    assert land.north_angle == pytest.approx(15.0)
+    assert land.address == "42 Elm Street"
+    assert land.boundary is None
+    assert not land.has_boundary
+
+
+def test_minimal_boundary_properties_return_none():
+    land = Land.minimal(north_angle=30.0)
+    assert land.area_m2 is None
+    assert land.perimeter_m is None
+    assert land.centroid is None
+    assert land.centroid_latlon is None
+    assert land.latlon_boundary is None
+    assert land.buildable_boundary is None
+    assert land.buildable_area_m2 is None
+
+
+def test_minimal_zoning_properties_return_none():
+    land = Land.minimal().with_zoning(ZoningInfo(max_far=2.0))
+    # No boundary → lot_area unknown → FAR/footprint limits are None
+    assert land.max_floor_area_m2 is None
+    assert land.max_footprint_m2 is None
+
+
+def test_minimal_agent_context_omits_boundary_keys():
+    land = Land.minimal(north_angle=10.0, address="No Boundary Lane")
+    ctx = land.to_agent_context()
+    assert ctx["address"] == "No Boundary Lane"
+    assert ctx["north_angle_deg"] == pytest.approx(10.0)
+    # Boundary-derived keys should be absent
+    assert "area_m2" not in ctx
+    assert "perimeter_m" not in ctx
+    assert "buildable_area_m2" not in ctx
+
+
+def test_minimal_has_boundary_false():
+    assert not Land.minimal().has_boundary
+
+
+def test_from_latlon_has_boundary_true():
+    land = Land.from_latlon(_SF_COORDS)
+    assert land.has_boundary
+
+
+# ---------------------------------------------------------------------------
+# SiteContext is a backward-compatible alias for Land
+# ---------------------------------------------------------------------------
+
+
+def test_site_context_alias():
+    from archit_app import SiteContext
+
+    assert SiteContext is Land
+
+
+def test_building_site_property_mirrors_land():
+    land = Land.from_latlon(_SF_COORDS)
+    building = Building().with_land(land)
+    assert building.site is building.land
+
+
+def test_building_with_site_delegates_to_land():
+    land = Land.minimal(north_angle=20.0, address="Via with_site")
+    building = Building().with_site(land)
+    assert building.land is land
+    assert building.site is land
+
+
+# ---------------------------------------------------------------------------
+# JSON round-trip with full Land (new format)
+# ---------------------------------------------------------------------------
+
+
+def test_json_round_trip_land_with_boundary():
+    from archit_app.io.json_schema import building_to_json, building_from_json
+
+    land = (
+        Land.from_latlon(_SF_COORDS, address="Round-trip St", elevation_m=5.0)
+        .with_setbacks(Setbacks(front=2.0, back=3.0, left=1.0, right=1.0))
+        .with_zoning(ZoningInfo(zone_code="R-3", max_far=1.8, max_height_m=12.0))
+    )
+    building = Building().with_metadata(name="Test").with_land(land)
+
+    json_str = building_to_json(building)
+    restored = building_from_json(json_str)
+
+    assert restored.land is not None
+    assert restored.land.address == "Round-trip St"
+    assert restored.land.elevation_m == pytest.approx(5.0)
+    assert restored.land.setbacks.front == pytest.approx(2.0)
+    assert restored.land.zoning is not None
+    assert restored.land.zoning.zone_code == "R-3"
+    assert restored.land.zoning.max_far == pytest.approx(1.8)
+    assert restored.land.boundary is not None
+    assert restored.land.area_m2 == pytest.approx(land.area_m2, rel=1e-6)
+
+
+def test_json_round_trip_minimal_land():
+    from archit_app.io.json_schema import building_to_json, building_from_json
+
+    land = Land.minimal(north_angle=45.0, address="Minimal Site")
+    building = Building().with_land(land)
+
+    json_str = building_to_json(building)
+    restored = building_from_json(json_str)
+
+    assert restored.land is not None
+    assert restored.land.address == "Minimal Site"
+    assert restored.land.north_angle == pytest.approx(45.0)
+    assert restored.land.boundary is None
+
+
+def test_json_backward_compat_legacy_site_key():
+    """Buildings serialised with the old ``site`` key should deserialise correctly."""
+    import json
+    from archit_app.io.json_schema import building_from_json
+
+    legacy_json = json.dumps({
+        "_archit_app_version": "1.0",
+        "metadata": {"name": "Legacy", "project_number": "", "architect": "", "client": "", "date": ""},
+        "levels": [],
+        "site": {
+            "boundary": None,
+            "north_angle": 30.0,
+            "address": "Old format",
+            "epsg_code": None,
+        },
+    })
+    building = building_from_json(legacy_json)
+    assert building.land is not None
+    assert building.land.address == "Old format"
+    assert building.land.north_angle == pytest.approx(30.0)
+
+
+def test_json_no_land_gives_none():
+    from archit_app.io.json_schema import building_to_json, building_from_json
+
+    building = Building().with_metadata(name="No Site")
+    restored = building_from_json(building_to_json(building))
+    assert restored.land is None

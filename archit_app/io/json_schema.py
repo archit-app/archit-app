@@ -21,8 +21,8 @@ from typing import Any
 from uuid import UUID
 
 from archit_app.building.building import Building, BuildingMetadata
+from archit_app.building.land import Land
 from archit_app.building.level import Level
-from archit_app.building.site import SiteContext
 from archit_app.elements.column import Column, ColumnShape
 from archit_app.elements.opening import Frame, Opening, OpeningKind, SwingGeometry
 from archit_app.elements.room import Room
@@ -348,25 +348,91 @@ def _des_level(data: dict[str, Any]) -> Level:
     )
 
 
-def _ser_site(site: SiteContext | None) -> dict[str, Any] | None:
-    if site is None:
+def _ser_land(land: Land | None) -> dict[str, Any] | None:
+    """Serialize a Land (or None) to a JSON-serialisable dict."""
+    if land is None:
         return None
-    return {
-        "boundary": _ser_polygon(site.boundary) if site.boundary else None,
-        "north_angle": site.north_angle,
-        "address": site.address,
-        "epsg_code": site.epsg_code,
+    d: dict[str, Any] = {
+        "boundary": _ser_polygon(land.boundary) if land.boundary is not None else None,
+        "north_angle": land.north_angle,
+        "address": land.address,
+        "epsg_code": land.epsg_code,
+        "elevation_m": land.elevation_m,
+        "setbacks": {
+            "front": land.setbacks.front,
+            "back": land.setbacks.back,
+            "left": land.setbacks.left,
+            "right": land.setbacks.right,
+        },
     }
+    if land.latlon_coords is not None:
+        d["latlon_coords"] = [list(c) for c in land.latlon_coords]
+    if land.origin_lat is not None:
+        d["origin_lat"] = land.origin_lat
+    if land.origin_lon is not None:
+        d["origin_lon"] = land.origin_lon
+    if land.zoning is not None:
+        z = land.zoning
+        d["zoning"] = {
+            "zone_code": z.zone_code,
+            "max_height_m": z.max_height_m,
+            "max_far": z.max_far,
+            "max_lot_coverage": z.max_lot_coverage,
+            "min_lot_area_m2": z.min_lot_area_m2,
+            "allowed_uses": list(z.allowed_uses),
+            "notes": z.notes,
+            "source": z.source,
+        }
+    return d
 
 
-def _des_site(data: dict[str, Any] | None) -> SiteContext | None:
+def _des_land(data: dict[str, Any] | None) -> Land | None:
+    """
+    Deserialize a Land from a dict.
+
+    Accepts both the full ``land`` format (new) and the legacy minimal
+    ``site`` format (``boundary``, ``north_angle``, ``address``, ``epsg_code`` only).
+    """
     if data is None:
         return None
-    return SiteContext(
-        boundary=_des_polygon(data["boundary"]) if data.get("boundary") else None,
+    from archit_app.building.land import Setbacks, ZoningInfo
+
+    boundary = _des_polygon(data["boundary"]) if data.get("boundary") else None
+    setbacks_data = data.get("setbacks", {})
+    setbacks = Setbacks(
+        front=setbacks_data.get("front", 0.0),
+        back=setbacks_data.get("back", 0.0),
+        left=setbacks_data.get("left", 0.0),
+        right=setbacks_data.get("right", 0.0),
+    )
+    zoning = None
+    if data.get("zoning"):
+        z = data["zoning"]
+        zoning = ZoningInfo(
+            zone_code=z.get("zone_code", ""),
+            max_height_m=z.get("max_height_m"),
+            max_far=z.get("max_far"),
+            max_lot_coverage=z.get("max_lot_coverage"),
+            min_lot_area_m2=z.get("min_lot_area_m2"),
+            allowed_uses=tuple(z.get("allowed_uses", [])),
+            notes=z.get("notes", ""),
+            source=z.get("source", ""),
+        )
+    latlon_raw = data.get("latlon_coords")
+    latlon_coords = (
+        tuple(tuple(c) for c in latlon_raw) if latlon_raw is not None else None
+    )
+    return Land(
+        boundary=boundary,
+        latlon_coords=latlon_coords,
+        origin_lat=data.get("origin_lat"),
+        origin_lon=data.get("origin_lon"),
         north_angle=data.get("north_angle", 0.0),
         address=data.get("address", ""),
         epsg_code=data.get("epsg_code"),
+        elevation_m=data.get("elevation_m", 0.0),
+        setbacks=setbacks,
+        zoning=zoning,
     )
 
 
@@ -382,12 +448,17 @@ def building_to_dict(building: Building) -> dict[str, Any]:
             "date": building.metadata.date,
         },
         "levels": [_ser_level(lv) for lv in building.levels],
-        "site": _ser_site(building.site),
+        "land": _ser_land(building.land),
     }
 
 
 def building_from_dict(data: dict[str, Any]) -> Building:
-    """Reconstruct a Building from a dict (as produced by building_to_dict)."""
+    """
+    Reconstruct a Building from a dict (as produced by building_to_dict).
+
+    Reads the ``land`` key (current format).  Falls back to the legacy ``site``
+    key produced by versions prior to this refactor.
+    """
     meta = data.get("metadata", {})
     metadata = BuildingMetadata(
         name=meta.get("name", ""),
@@ -397,8 +468,10 @@ def building_from_dict(data: dict[str, Any]) -> Building:
         date=meta.get("date", ""),
     )
     levels = tuple(_des_level(lv) for lv in data.get("levels", []))
-    site = _des_site(data.get("site"))
-    return Building(metadata=metadata, levels=levels, site=site)
+    # Accept both the new "land" key and the legacy "site" key
+    land_data = data.get("land") or data.get("site")
+    land = _des_land(land_data)
+    return Building(metadata=metadata, levels=levels, land=land)
 
 
 # ---------------------------------------------------------------------------
