@@ -730,7 +730,13 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - `Level` gains `text_annotations`, `dimensions`, `section_marks` fields and `add_text_annotation()`, `add_dimension()`, `add_section_mark()` methods; all three integrated into `get_element_by_id()` and `remove_element()`
     - Exported from `archit_app.elements` and top-level `archit_app`
     - 56 tests in `tests/elements/test_annotation.py`
-26. **Missing test coverage** — `NURBSCurve`, `BezierCurve`, `Vector2D/3D` ops, `BoundingBox3D`, DXF export, column element, curve transforms have no tests
+26. ✅ **Missing test coverage** — `NURBSCurve`, `BezierCurve`, `Vector2D/3D` ops, `BoundingBox3D`, DXF export, column element, curve transforms have no tests
+    - **Done 2026-04-16**
+    - `tests/geometry/test_vector.py` — 52 tests: `Vector2D` (magnitude, dot, cross, rotated, perpendicular, angle, arithmetic, CRS guards) and `Vector3D` (magnitude, normalized, dot, cross anticommutative, arithmetic)
+    - `tests/geometry/test_bbox.py` — 34 tests: `BoundingBox2D` (construction, `from_points`, width/height/area/center, `contains_point`, `intersects`, `intersection`, `union`, `expanded`, `to_polygon`) and `BoundingBox3D` (width/depth/height/volume)
+    - `tests/geometry/test_curve.py` — 44 tests: `ArcCurve` (start/end/mid points, `span_angle` incl. wrap-around and clockwise, `to_polyline`, length, `transformed`) and `BezierCurve` (quadratic and cubic: degree, endpoints, midpoint via De Casteljau at t=0.5, polyline, length, `transformed`)
+    - `tests/elements/test_column.py` — 16 tests: `Column` rectangular/circular factories, footprint area, bounding_box, material, shape enum, `with_tag`, frozen
+    - Total suite: **719 passed**, 26 skipped
 27. **`OpeningKind.ARCHWAY` / `PASS_THROUGH` factories** — enum variants exist but no geometry factories
 
 ---
