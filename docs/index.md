@@ -18,10 +18,10 @@ Welcome to the `archit_app` library documentation.
 
 ### API Reference
 
-- [Geometry](api/geometry.md) — `CoordinateSystem`, `Point2D`, `Vector2D`, `Polygon2D`, `Transform2D`, curves
-- [Elements](api/elements.md) — `Wall`, `Room`, `Opening`, `Column`, `Element`
-- [Building](api/building.md) — `Level`, `Building`, `BuildingMetadata`, `SiteContext`
-- [I/O](api/io.md) — JSON, SVG, GeoJSON, DXF exporters
+- [Geometry](api/geometry.md) — `CoordinateSystem`, `CoordinateConverter`, `Point2D`, `Vector2D`, `Polygon2D`, `Transform2D`, curves, `Segment2D`, `Line2D`, `Polyline2D`
+- [Elements](api/elements.md) — `Wall`, `Room`, `Opening`, `Column`, `Staircase`, `Slab`, `Ramp`, `Elevator`, `Beam`, `Furniture`, `TextAnnotation`, `DimensionLine`, `SectionMark`
+- [Building](api/building.md) — `Level`, `Building`, `BuildingMetadata`, `Land`, `StructuralGrid`
+- [I/O](api/io.md) — JSON, SVG, GeoJSON, DXF, IFC, PNG, PDF
 - [Registry](api/registry.md) — plugin/extension system
 
 ### Development
@@ -32,7 +32,7 @@ Welcome to the `archit_app` library documentation.
 
 | | |
 |---|---|
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Python | 3.11+ |
 | License | MIT |
-| Source | [github.com/…/floorplan](https://github.com) |
+| Source | [github.com/archit-app/archit-app](https://github.com/archit-app/archit-app) |

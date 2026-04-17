@@ -157,6 +157,27 @@ The `Wall.straight()` factory automatically builds the correct `Polygon2D` from 
 
 ---
 
+## Coordinate conversion
+
+`CoordinateConverter` maintains a graph of registered `Transform2D` transforms between CRS singletons. Multi-hop conversion (e.g. IMAGE → WORLD resolved via SCREEN) is found automatically using BFS.
+
+```python
+from archit_app import build_default_converter, SCREEN, WORLD, Point2D
+
+conv = build_default_converter(
+    viewport_height_px=600.0,
+    pixels_per_meter=50.0,
+    canvas_origin_world=(0.0, 0.0),
+)
+
+screen_click = Point2D(x=400.0, y=300.0, crs=SCREEN)
+world_pos = screen_click.to(WORLD, conv)
+```
+
+`build_default_converter()` pre-registers SCREEN ↔ IMAGE ↔ WORLD with the standard Y-flip and scale. Register additional spaces (e.g. WGS84 for georeferencing) with `conv.register(src, dst, transform)`.
+
+---
+
 ## Polygon2D and holes
 
 `Polygon2D` supports holes — arbitrary sub-polygons cut out of the boundary. This is used for:
@@ -197,13 +218,25 @@ feet = LengthUnit.FEET.from_meters(meters_value)  # 9.84...
 ## Building hierarchy
 
 ```
-SiteContext           optional lot/geographic context
-└── Building          metadata + ordered list of levels
-    └── Level         one floor: index, elevation, floor_height
-        ├── walls:    tuple[Wall, ...]
-        ├── rooms:    tuple[Room, ...]
-        ├── openings: tuple[Opening, ...]   (level-standalone)
-        └── columns:  tuple[Column, ...]
+Land                    optional lot/geographic context (GPS coords, setbacks, zoning)
+└── Building            metadata + ordered list of levels + elevators + grid
+    ├── StructuralGrid  named axes, intersection queries, snap-to-grid
+    ├── Elevator(s)     shaft + cab + per-level doors (span multiple levels)
+    └── Level           one floor: index, elevation, floor_height
+        ├── walls:           tuple[Wall, ...]
+        ├── rooms:           tuple[Room, ...]
+        ├── openings:        tuple[Opening, ...]     (level-standalone)
+        ├── columns:         tuple[Column, ...]
+        ├── staircases:      tuple[Staircase, ...]
+        ├── slabs:           tuple[Slab, ...]
+        ├── ramps:           tuple[Ramp, ...]
+        ├── beams:           tuple[Beam, ...]
+        ├── furniture:       tuple[Furniture, ...]
+        ├── text_annotations:tuple[TextAnnotation, ...]
+        ├── dimensions:      tuple[DimensionLine, ...]
+        └── section_marks:   tuple[SectionMark, ...]
 ```
 
 `Level.index` is the floor number: 0 = ground floor, negative = basements, positive = upper floors. Levels inside a `Building` are kept sorted by index automatically.
+
+`SiteContext` is a backward-compatible alias for `Land`. New code should use `Land` directly.

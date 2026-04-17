@@ -529,11 +529,12 @@ The library is structured in layers:
 ```
 archit_app/
 ├── geometry/     Layer 1 — CRS, points, vectors, transforms, polygons, curves,
-│                            CoordinateConverter, build_default_converter
+│                            Segment2D/Ray2D/Line2D/Polyline2D, CoordinateConverter
 ├── elements/     Layer 2 — Wall, Room, Opening, Column, Staircase, Slab,
-│                            Ramp, Elevator, Beam, wall_join utilities
+│                            Ramp, Elevator, Beam, Furniture, TextAnnotation,
+│                            DimensionLine, SectionMark, wall_join utilities
 ├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building,
-│                            SiteContext, StructuralGrid
+│                            BuildingMetadata, StructuralGrid
 ├── analysis/     Layer 6 — topology, circulation, area, compliance,
 │                            daylighting, visibility
 ├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF (read+write), IFC, PNG, PDF
@@ -564,20 +565,17 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Layer 1 — Geometry | Done | CRS, Point, Vector, BBox, Polygon, Curve, Transform |
-| Layer 2 — Elements (core) | Done | Wall, Room, Opening, Column |
-| Layer 2 — Elements (vertical circulation) | Done | Staircase, Ramp, Elevator |
-| Layer 2 — Elements (structural) | Done | Slab, Beam, StructuralGrid |
-| Layer 2 — Wall joining | Done | `miter_join`, `butt_join`, `join_walls` |
-| Layer 3 — Building | Done | Level, Building, SiteContext, Land, Setbacks, ZoningInfo |
-| Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF, IFC 4.x |
+| Layer 1 — Geometry | Done | CRS, Point, Vector, BBox, Polygon, Curve, Transform, Segment2D/Ray2D/Line2D/Polyline2D |
+| Layer 2 — Elements (core) | Done | Wall, Room, Opening, Column, Furniture, TextAnnotation, DimensionLine, SectionMark |
+| Layer 2 — Elements (circulation/structural) | Done | Staircase, Ramp, Elevator, Slab, Beam, StructuralGrid, wall joining |
+| Layer 3 — Building | Done | Level, Building, Land, Setbacks, ZoningInfo |
+| Layer 5 — I/O | Done | JSON, SVG, GeoJSON, DXF (read+write), IFC 4.x, PNG, PDF |
 | Layer 6 — Analysis | Done | Topology graph, egress, area validation, zoning compliance, daylighting, isovist |
-| CoordinateConverter | Done | Graph-based multi-CRS path-finding converter; `Point2D.to()` |
-| NURBS evaluator | Done | Full Cox–de Boor evaluation; `clamped_uniform()` factory; exact conic sections |
-| IFC export | Done | IFC 4.x write via ifcopenshell; walls, rooms, doors, columns, slabs, stairs |
-| DXF import | Planned | Round-trip DXF support |
-| PDF / raster export | Planned | Print-ready output at specified DPI/scale |
-| Layer 4 — Image | Planned | Panorama, rectification, camera calibration |
+| CoordinateConverter | Done | Graph-based multi-CRS path-finding; `Point2D.to()` |
+| NURBS evaluator | Done | Cox–de Boor; `clamped_uniform()` factory; exact conic sections |
+| Layer 4 — App infrastructure | Planned | `ElementQuery` (select/filter), `History` (undo/redo), `Viewport` (view state) |
+| Analysis completeness | Planned | Accessibility checker, room-from-walls auto-detection |
+| I/O completeness | Planned | SVG/PDF/PNG render furniture+annotations; GeoJSON import; JSON migration |
 
 ---
 

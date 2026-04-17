@@ -5,12 +5,14 @@ from archit_app import (
     CoordinateSystem, LengthUnit, YDirection,
     CRSMismatchError, require_same_crs,
     WORLD, SCREEN, IMAGE, WGS84,
+    CoordinateConverter, build_default_converter,
     Transform2D,
     Point2D, Point3D,
     Vector2D, Vector3D,
     BoundingBox2D, BoundingBox3D,
     Polygon2D,
-    ArcCurve, BezierCurve, NURBSCurve, CurveBase,
+    ArcCurve, BezierCurve, NURBSCurve,
+    Segment2D, Ray2D, Line2D, Polyline2D,
 )
 ```
 
@@ -81,6 +83,50 @@ Raised when two spatial objects in incompatible coordinate systems are combined.
 
 ```python
 class CRSMismatchError(ValueError): ...
+```
+
+---
+
+## CoordinateConverter
+
+```python
+class CoordinateConverter:
+    def register(src: CoordinateSystem, dst: CoordinateSystem, transform: Transform2D) -> None
+    def convert(pts: np.ndarray, src: CoordinateSystem, dst: CoordinateSystem) -> np.ndarray
+    def can_convert(src: CoordinateSystem, dst: CoordinateSystem) -> bool
+```
+
+Graph-based multi-hop CRS converter. `register()` stores the forward transform and its inverse automatically. `convert()` takes an `(N, 2)` float64 array and returns a converted array; intermediate hops are resolved via BFS.
+
+`ConversionPathNotFoundError` is raised when no registered path exists between `src` and `dst`.
+
+### `build_default_converter`
+
+```python
+build_default_converter(
+    viewport_height_px: float,
+    pixels_per_meter: float,
+    canvas_origin_world: tuple[float, float] = (0.0, 0.0),
+) -> CoordinateConverter
+```
+
+Factory pre-registering SCREEN ↔ IMAGE ↔ WORLD with the standard Y-flip and pixel/meter scale.
+
+**Example:**
+
+```python
+from archit_app import build_default_converter, SCREEN, WORLD, IMAGE, Point2D
+import numpy as np
+
+conv = build_default_converter(viewport_height_px=600, pixels_per_meter=50)
+
+# Convert a screen click to world coordinates
+click = Point2D(x=400, y=300, crs=SCREEN)
+world_pt = click.to(WORLD, conv)
+
+# Bulk conversion
+pts_screen = np.array([[200.0, 100.0], [400.0, 300.0]])
+pts_world = conv.convert(pts_screen, SCREEN, WORLD)
 ```
 
 ---
@@ -197,15 +243,21 @@ class Vector2D(BaseModel, frozen=True):
 
 Vectors transform without translation (unlike points). Arithmetic enforces CRS equality.
 
-### Key methods (Vector2D)
+### Key properties and methods (Vector2D)
 
-| Method | Returns | Description |
+| Member | Returns | Description |
 |--------|---------|-------------|
-| `v.length()` | `float` | Euclidean norm |
-| `v.normalized()` | `Vector2D` | Unit vector |
-| `v.dot(other)` | `float` | Dot product |
-| `v.cross(other)` | `float` | 2D cross product (scalar) |
+| `v.magnitude` | `float` | Euclidean norm (`√(x²+y²)`) |
+| `v.magnitude_sq` | `float` | Squared norm (avoids sqrt) |
+| `v.normalized()` | `Vector2D` | Unit vector; raises `ValueError` on zero vector |
+| `v.dot(other)` | `float` | Dot product (same CRS required) |
+| `v.cross(other)` | `float` | 2D cross product scalar (`x₁y₂ − y₁x₂`) |
+| `v.rotated(angle_rad)` | `Vector2D` | CCW rotation |
+| `v.perpendicular()` | `Vector2D` | CCW perpendicular unit vector |
+| `v.angle()` | `float` | Bearing from +X axis in radians (`atan2`) |
 | `v.as_array()` | `ndarray (2,)` | `[x, y]` float64 |
+
+Arithmetic (`+`, `-`, `*`, `/`, `neg`, `rmul`) all enforce CRS equality and return same-CRS vectors.
 
 ---
 
@@ -225,15 +277,23 @@ Axis-aligned bounding box.
 |----------|------|-------------|
 | `width` | `float` | max_x − min_x |
 | `height` | `float` | max_y − min_y |
+| `area` | `float` | width × height |
 | `center` | `Point2D` | Centroid of the box |
+| `crs` | `CoordinateSystem` | From `min_corner.crs` |
 
 ### Methods
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `BoundingBox2D.from_points(pts)` | `BoundingBox2D` | Compute from an iterable of `Point2D` |
+| `BoundingBox2D.from_points(pts)` | `BoundingBox2D` | Compute tight box from an iterable of `Point2D` |
+| `bb.contains_point(p)` | `bool` | True if point is inside or on boundary |
+| `bb.intersects(other)` | `bool` | True if boxes overlap (inclusive on edges) |
+| `bb.intersection(other)` | `BoundingBox2D \| None` | Overlapping region, or `None` if disjoint |
 | `bb.union(other)` | `BoundingBox2D` | Smallest box containing both |
-| `bb.contains_point(p)` | `bool` | Point-in-box test |
+| `bb.expanded(delta)` | `BoundingBox2D` | All sides grown by `delta` meters |
+| `bb.to_polygon()` | `Polygon2D` | Rectangle as a `Polygon2D` |
+
+`BoundingBox3D` adds `depth` (max_z − min_z) and `volume` properties.
 
 ---
 
@@ -315,4 +375,133 @@ class NURBSCurve(BaseModel, frozen=True):
     crs: CoordinateSystem = WORLD
 ```
 
-A Non-Uniform Rational B-Spline. Weights must match the number of control points. The knot vector must satisfy standard NURBS constraints (length = `len(control_points) + degree + 1`).
+A Non-Uniform Rational B-Spline. Uses the full Cox–de Boor algorithm (exact rational evaluation). Weights must match the number of control points. The knot vector length must equal `len(control_points) + degree + 1`.
+
+### Factory: `NURBSCurve.clamped_uniform`
+
+```python
+NURBSCurve.clamped_uniform(
+    control_points: tuple[Point2D, ...],
+    degree: int,
+    weights: tuple[float, ...] | None = None,   # defaults to all-ones
+) -> NURBSCurve
+```
+
+Generates a standard clamped knot vector automatically. The curve passes exactly through the first and last control points. With `degree=3` this gives the standard cubic spline.
+
+Pass non-uniform weights to produce rational curves (e.g. exact circles: set the middle weight to `cos(π/4)` for a quarter-circle).
+
+### Additional curve properties
+
+| Property / Method | Description |
+|---|---|
+| `curve.start_point` | Evaluate at start of domain |
+| `curve.end_point` | Evaluate at end of domain |
+| `curve.mid_point` | Evaluate at domain midpoint |
+| `curve.domain` | `(t_min, t_max)` from knot vector (NURBSCurve only) |
+| `curve.span_angle()` | Total arc span in radians (ArcCurve only) |
+| `curve.transformed(t)` | New curve with transform applied |
+| `curve.length(resolution=128)` | Arc length via polyline approximation |
+
+---
+
+## Segment2D
+
+```python
+class Segment2D(BaseModel, frozen=True):
+    start: Point2D
+    end: Point2D
+    crs: CoordinateSystem = WORLD
+```
+
+A directed finite segment.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `s.length` | `float` | Euclidean length |
+| `s.direction` | `Vector2D` | Unit vector start→end |
+| `s.midpoint` | `Point2D` | Midpoint |
+| `s.vector` | `Vector2D` | Non-normalised start→end vector |
+| `s.at(t)` | `Point2D` | Parametric point, `t ∈ [0, 1]` |
+| `s.closest_point(p)` | `Point2D` | Nearest point on segment to `p` |
+| `s.distance_to_point(p)` | `float` | Distance from `p` to segment |
+| `s.intersect(other)` | `Point2D \| None` | Intersection of two segments |
+| `s.reversed()` | `Segment2D` | Swap start/end |
+| `s.as_polyline()` | `Polyline2D` | Two-point polyline |
+| `s.as_line()` | `Line2D` | Extend to infinite line |
+| `s.transformed(t)` | `Segment2D` | Apply transform |
+
+---
+
+## Ray2D
+
+```python
+class Ray2D(BaseModel, frozen=True):
+    origin: Point2D
+    direction: Vector2D    # need not be a unit vector
+    crs: CoordinateSystem = WORLD
+```
+
+A half-line extending from `origin` in `direction`.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `r.at(t)` | `Point2D` | `origin + t * direction`, `t ≥ 0` |
+| `r.intersect_segment(seg)` | `Point2D \| None` | Ray–segment intersection |
+| `r.intersect_line(line)` | `Point2D \| None` | Ray–line intersection |
+| `r.to_segment(length)` | `Segment2D` | Finite segment of given length |
+| `r.transformed(t)` | `Ray2D` | Apply transform |
+
+---
+
+## Line2D
+
+```python
+class Line2D(BaseModel, frozen=True):
+    point: Point2D     # any point on the line
+    direction: Vector2D
+    crs: CoordinateSystem = WORLD
+```
+
+An infinite line.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `Line2D.from_two_points(a, b)` | `Line2D` | Factory |
+| `Line2D.from_segment(seg)` | `Line2D` | Extend segment to line |
+| `line.normal` | `Vector2D` | CCW perpendicular unit vector |
+| `line.project(p)` | `Point2D` | Orthogonal projection onto line |
+| `line.closest_point(p)` | `Point2D` | Same as `project` |
+| `line.distance_to_point(p)` | `float` | Perpendicular distance |
+| `line.side_of(p)` | `float` | > 0 left, < 0 right, 0 on line |
+| `line.intersect(other)` | `Point2D \| None` | Line–line intersection |
+| `line.intersect_segment(seg)` | `Point2D \| None` | Line–segment intersection |
+| `line.parallel_offset(d)` | `Line2D` | Parallel line at signed distance `d` |
+| `line.as_ray()` | `Ray2D` | Half-line from `point` in `direction` |
+| `line.transformed(t)` | `Line2D` | Apply transform |
+
+---
+
+## Polyline2D
+
+```python
+class Polyline2D(BaseModel, frozen=True):
+    points: tuple[Point2D, ...]    # ordered sequence (≥ 2 points)
+    crs: CoordinateSystem = WORLD
+```
+
+An ordered sequence of connected line segments.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `pl.segments()` | `list[Segment2D]` | All consecutive segments |
+| `pl.segment_at(i)` | `Segment2D` | Segment at index `i` |
+| `pl.length` | `float` | Total polyline length |
+| `pl.bbox()` | `BoundingBox2D` | Tight bounding box |
+| `pl.closest_point(p)` | `Point2D` | Nearest point on any segment |
+| `pl.reversed()` | `Polyline2D` | Reversed point order |
+| `pl.append(p)` | `Polyline2D` | New polyline with `p` added at end |
+| `pl.close()` | `Polyline2D` | Append first point to close the loop |
+| `pl.to_polygon()` | `Polygon2D` | Close and convert to polygon |
+| `pl.intersections(other)` | `list[Point2D]` | All intersection points with another polyline |
+| `pl.transformed(t)` | `Polyline2D` | Apply transform to all points |

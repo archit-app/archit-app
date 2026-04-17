@@ -1,6 +1,6 @@
 # API Reference — I/O
 
-`archit_app` supports four interchange formats. All exporters work at the `Building` and `Level` level.
+`archit_app` supports seven interchange formats. All exporters work at both `Level` and `Building` level.
 
 ---
 
@@ -14,83 +14,20 @@ from archit_app.io.json_schema import (
 )
 ```
 
-The canonical JSON format is:
-
-- Human-readable (pretty-printed by default)
-- Fully round-trippable — serialize → deserialize → identical object graph
-- Forward-compatible via a `_archit_app_version` field
+The canonical format is fully round-trippable, versioned (`"_archit_app_version": "0.2.0"`), and human-readable.
 
 ### Functions
 
-#### `building_to_json(building, indent=2) → str`
+| Function | Description |
+|----------|-------------|
+| `building_to_json(building, indent=2) → str` | Serialize to JSON string |
+| `building_from_json(s) → Building` | Deserialize from JSON string |
+| `building_to_dict(building) → dict` | Serialize to plain dict |
+| `building_from_dict(data) → Building` | Reconstruct from dict |
+| `save_building(building, path, indent=2) → None` | Write to `.archit_app.json` file |
+| `load_building(path) → Building` | Read from file |
 
-Serialize a `Building` to a JSON string.
-
-```python
-json_str = building_to_json(building, indent=2)
-```
-
-#### `building_from_json(s) → Building`
-
-Deserialize a `Building` from a JSON string.
-
-```python
-building = building_from_json(json_str)
-```
-
-#### `building_to_dict(building) → dict`
-
-Serialize a `Building` to a JSON-serializable `dict`. Useful for embedding in larger documents.
-
-#### `building_from_dict(data) → Building`
-
-Reconstruct a `Building` from a dict (as produced by `building_to_dict`).
-
-#### `save_building(building, path, indent=2) → None`
-
-Write a `Building` to a file. The conventional extension is `.archit_app.json`.
-
-```python
-save_building(building, "project.archit_app.json")
-```
-
-#### `load_building(path) → Building`
-
-Read a `Building` from a `.archit_app.json` file.
-
-```python
-building = load_building("project.archit_app.json")
-```
-
-### File format overview
-
-```json
-{
-  "_archit_app_version": "0.1.0",
-  "metadata": {
-    "name": "My House",
-    "project_number": "",
-    "architect": "",
-    "client": "",
-    "date": ""
-  },
-  "levels": [
-    {
-      "index": 0,
-      "elevation": 0.0,
-      "floor_height": 3.0,
-      "name": "Ground Floor",
-      "walls": [ ... ],
-      "rooms": [ ... ],
-      "openings": [ ... ],
-      "columns": [ ... ]
-    }
-  ],
-  "site": null
-}
-```
-
-All UUIDs are serialized as strings. All `Transform2D` objects are stored as `[[row], [row], [row]]` nested lists. CRS is stored by name (`"world"`, `"screen"`, `"image"`, `"geographic"`).
+The deserializer reads both the current `"land"` key and the legacy `"site"` key for backward compatibility.
 
 ---
 
@@ -105,7 +42,11 @@ from archit_app.io.svg import (
 )
 ```
 
-Renders clean 2D floorplan diagrams as SVG. Rooms, walls, openings, columns, labels, and a scale bar are all rendered. Coordinate system: world Y-up is automatically flipped to SVG Y-down.
+Renders 2D floorplan diagrams. World Y-up is automatically flipped to SVG Y-down.
+
+**Currently rendered:** rooms (filled, label, area), walls, openings (door swing arc, window sill line), columns, scale bar, title.
+
+**Not yet rendered:** furniture, annotations, dimension lines, section marks, beams, ramps. These are planned (P10 item 36).
 
 ### `level_to_svg`
 
@@ -119,64 +60,116 @@ level_to_svg(
 ) -> str
 ```
 
-Render a single level as an SVG string.
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `pixels_per_meter` | `50.0` | Drawing scale. 50 px/m ≈ 1:20 at 96 dpi |
-| `margin` | `40` | Padding around the drawing in pixels |
-| `title` | `None` | Title text. Defaults to `level.name` or `"Level N"` |
-| `palette` | `None` | Dict to override default colors (see below) |
-
-### `building_to_svg_pages`
+### `save_level_svg` / `save_building_svgs`
 
 ```python
-building_to_svg_pages(
-    building: Building,
-    pixels_per_meter: float = 50.0,
-    margin: float = 40,
-) -> list[tuple[int, str]]
+save_level_svg(level, path, **kwargs) -> None
+save_building_svgs(building, directory, **kwargs) -> list[str]
 ```
 
-Render each level as a separate SVG. Returns a list of `(level_index, svg_string)` tuples.
+### Color palette keys
 
-### `save_level_svg`
+`room_fill`, `room_stroke`, `wall_fill`, `wall_stroke`, `column_fill`, `column_stroke`, `door_fill`, `door_stroke`, `window_fill`, `window_stroke`, `background`, `room_label`, `annotation`
+
+---
+
+## PNG (raster export)
 
 ```python
-save_level_svg(level: Level, path: str, **kwargs) -> None
+# Requires: pip install "archit-app[image]"
+from archit_app.io.image import (
+    level_to_png_bytes,
+    save_level_png,
+    save_building_pngs,
+)
 ```
 
-Write a level's SVG to a file. Keyword arguments are passed to `level_to_svg`.
+Raster export via Pillow. Uses 2× supersampling for clean anti-aliased edges.
 
-### `save_building_svgs`
+### `level_to_png_bytes`
 
 ```python
-save_building_svgs(building: Building, directory: str, **kwargs) -> list[str]
+level_to_png_bytes(
+    level: Level,
+    pixels_per_meter: float = 100.0,
+    dpi: int = 150,
+    margin: int = 40,
+    palette: dict | None = None,
+) -> bytes
 ```
 
-Write one SVG per level to `directory`. Returns the list of file paths written. The directory is created if it does not exist. Files are named `level_00.svg`, `level_01.svg`, etc.
-
-### Color palette
-
-Override any color by passing a `palette` dict to `level_to_svg`:
+### `save_level_png`
 
 ```python
-svg = level_to_svg(level, palette={
-    "room_fill": "#E8F4E8",
-    "wall_fill": "#333333",
-})
+save_level_png(level, path, pixels_per_meter=100.0, dpi=150, **kwargs) -> None
 ```
 
-Default palette keys: `room_fill`, `room_stroke`, `wall_fill`, `wall_stroke`, `column_fill`, `column_stroke`, `door_fill`, `door_stroke`, `window_fill`, `window_stroke`, `background`, `room_label`, `annotation`.
+### `save_building_pngs`
+
+```python
+save_building_pngs(building, directory, pixels_per_meter=100.0, dpi=150, **kwargs) -> list[str]
+```
+
+Writes one PNG per level into `directory`. Returns the list of file paths.
 
 **Example:**
 
 ```python
-from archit_app.io.svg import save_building_svgs
+from archit_app.io.image import save_level_png, save_building_pngs
 
-paths = save_building_svgs(building, directory="output/svgs", pixels_per_meter=80)
-for p in paths:
-    print(f"Wrote {p}")
+save_level_png(ground, "ground_floor.png", pixels_per_meter=100, dpi=150)
+save_building_pngs(building, "output/pngs/", pixels_per_meter=100)
+```
+
+---
+
+## PDF
+
+```python
+# Requires: pip install "archit-app[pdf]"
+from archit_app.io.pdf import (
+    level_to_pdf_bytes,
+    save_level_pdf,
+    building_to_pdf_bytes,
+    save_building_pdf,
+)
+```
+
+Print-ready PDF export via reportlab. Auto-selects landscape/portrait based on drawing aspect ratio.
+
+### `save_level_pdf`
+
+```python
+save_level_pdf(
+    level: Level,
+    path: str,
+    paper_size: str = "A3",
+    landscape: bool | None = None,   # None = auto-detect
+    **kwargs,
+) -> None
+```
+
+### `save_building_pdf`
+
+```python
+save_building_pdf(
+    building: Building,
+    path: str,
+    paper_size: str = "A3",
+    **kwargs,
+) -> None
+```
+
+Multi-page PDF — one page per level.
+
+**Supported paper sizes:** `"A1"`, `"A2"`, `"A3"` (default), `"A4"`, `"letter"`
+
+**Example:**
+
+```python
+from archit_app.io.pdf import save_building_pdf
+
+save_building_pdf(building, "project.pdf", paper_size="A2")
 ```
 
 ---
@@ -192,37 +185,17 @@ from archit_app.io.geojson import (
 )
 ```
 
-Exports floorplan elements as GeoJSON `FeatureCollection`. Useful for loading into GIS tools (QGIS, Mapbox, Leaflet, etc.) and for spatial analysis.
+Exports as a GeoJSON `FeatureCollection`. Coordinates are in world space (meters). Each feature carries its element type, UUID, tags, and layer as GeoJSON properties. Multi-level exports include a `level_index` property per feature.
 
-**Note:** Coordinates are in the CRS of the elements (meters by default). If you need geographic coordinates (lat/lon), apply a georeferencing transform before exporting.
-
-### `level_to_geojson`
-
-```python
-level_to_geojson(level: Level) -> dict
-```
-
-Returns a GeoJSON `FeatureCollection` dict containing all rooms, walls, openings, and columns as `Feature` objects. Each feature carries its element type, UUID, tags, and layer as GeoJSON properties.
-
-### `building_to_geojson`
-
-```python
-building_to_geojson(building: Building) -> dict
-```
-
-Returns a merged `FeatureCollection` from all levels. Each feature has a `level_index` property.
-
-### `level_to_geojson_string` / `building_to_geojson_string`
-
-Convenience wrappers that return a JSON string instead of a dict.
+> **Note:** GeoJSON import is not yet implemented (planned P10 item 37).
 
 **Example:**
 
 ```python
-from archit_app.io.geojson import level_to_geojson
 import json
+from archit_app.io.geojson import level_to_geojson
 
-fc = level_to_geojson(ground_level)
+fc = level_to_geojson(ground)
 print(json.dumps(fc, indent=2))
 ```
 
@@ -231,59 +204,111 @@ print(json.dumps(fc, indent=2))
 ## DXF
 
 ```python
+# Requires: pip install "archit-app[io]"  (installs ezdxf ≥ 1.3)
 from archit_app.io.dxf import (
-    building_to_dxf,
-    level_to_dxf,
-    save_building_dxf,
+    building_to_dxf, level_to_dxf,
+    save_building_dxf, save_level_dxf,
+    building_from_dxf, level_from_dxf,
 )
 ```
 
-> **Requires:** `pip install "archit-app[io]"` (installs `ezdxf ≥ 1.3`)
+Full read/write round-trip via [ezdxf](https://ezdxf.readthedocs.io/).
 
-Exports to AutoCAD DXF format via [ezdxf](https://ezdxf.readthedocs.io/). Elements are placed on named DXF layers for easy import into CAD software.
+### Layer naming convention
 
-### DXF layer mapping
-
-| Element type | Layer name (single level) | Layer name (multi-level) |
+| Element type | Single level | Multi-level |
 |---|---|---|
 | Rooms | `FP_ROOMS` | `L00_FP_ROOMS` |
 | Walls | `FP_WALLS` | `L00_FP_WALLS` |
 | Openings | `FP_OPENINGS` | `L00_FP_OPENINGS` |
 | Columns | `FP_COLUMNS` | `L00_FP_COLUMNS` |
 
-Layer prefixes use zero-padded level index (`L00`, `L01`, etc.).
-
-### `building_to_dxf`
+### Write
 
 ```python
-building_to_dxf(building: Building) -> ezdxf.document.Drawing
+save_building_dxf(building, "project.dxf") -> None
+save_level_dxf(level, "floor.dxf") -> None
+building_to_dxf(building) -> ezdxf.document.Drawing   # for further manipulation
 ```
 
-Returns an `ezdxf` `Drawing` object. You can further modify it before saving.
+### Read
 
 ```python
-doc = building_to_dxf(building)
-doc.saveas("my_building.dxf")
+level_from_dxf(
+    path: str,
+    *,
+    layer_mapping: dict[str, str] | None = None,  # e.g. {"A-WALL": "walls"}
+    level_index: int = 0,
+    wall_height: float = 3.0,
+    wall_thickness: float = 0.2,
+) -> Level
 ```
 
-### `save_building_dxf`
+Auto-detects `FP_*` layer names. Pass `layer_mapping` for non-archit-app DXF files.
 
 ```python
-save_building_dxf(building: Building, path: str) -> None
+building_from_dxf(
+    path: str,
+    **kwargs,
+) -> Building
 ```
 
-Convenience function that calls `building_to_dxf` and saves the result.
+Auto-detects `L{dd}_FP_*` level prefixes. Single-level files without prefixes produce a one-level building.
+
+**Example:**
 
 ```python
-from archit_app.io.dxf import save_building_dxf
+from archit_app.io.dxf import save_building_dxf, building_from_dxf
 
 save_building_dxf(building, "project.dxf")
+restored = building_from_dxf("project.dxf")
+
+# Import from generic CAD file
+level = level_from_dxf("autocad.dxf",
+                        layer_mapping={"A-WALL": "walls", "A-FLOR-PATT": "rooms"})
 ```
 
-### `level_to_dxf`
+---
+
+## IFC 4.x
 
 ```python
-level_to_dxf(level: Level, doc=None) -> ezdxf.document.Drawing
+# Requires: pip install "archit-app[ifc]"  (installs ifcopenshell)
+from archit_app.io.ifc import (
+    building_to_ifc,
+    save_building_ifc,
+)
 ```
 
-Export a single level to DXF. If `doc` is provided, elements are added to it (useful for building multi-level DXF files manually).
+Write-only IFC 4.x export. The file can be opened in Revit, ArchiCAD, FreeCAD, and any IFC 4-compliant viewer.
+
+**Exported types:** `IfcWall`, `IfcSpace` (rooms), `IfcDoor`, `IfcWindow`, `IfcColumn`, `IfcSlab`, `IfcStair` — all under `IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey`.
+
+Stable GUIDs are derived from element UUIDs — re-exporting always yields the same IFC GlobalIds.
+
+### `building_to_ifc`
+
+```python
+building_to_ifc(building: Building) -> ifcopenshell.file
+```
+
+Returns an `ifcopenshell.file` object for further manipulation before saving.
+
+### `save_building_ifc`
+
+```python
+save_building_ifc(building: Building, path: str) -> None
+```
+
+**Example:**
+
+```python
+from archit_app.io.ifc import save_building_ifc, building_to_ifc
+
+save_building_ifc(building, "project.ifc")
+
+# Or inspect before saving
+model = building_to_ifc(building)
+print(len(model.by_type("IfcWall")))
+model.write("project.ifc")
+```
