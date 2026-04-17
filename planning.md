@@ -683,11 +683,16 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - Strengthened validation: knot vector length, non-decreasing check, positive weights
     - 38 tests in `tests/geometry/test_nurbs.py` covering validation, Bézier equivalence, rational weights, exact conic sections, multi-span continuity, transforms
 
-20. **`Polyline` geometry type**
-    - No first-class polyline; sequences of line segments are currently just `tuple[Point2D]` with no type or methods
+20. ~~**`Polyline` geometry type**~~ — **Done** (`geometry/primitives.py`, 2026-04-16)
+    - `Polyline2D`: immutable ordered sequence of `Point2D`; `segments()`, `segment_at()`, `length`, `bbox()`, `closest_point()`, `reversed()`, `append()`, `close()`, `to_polygon()`, `intersections()`; CRS enforced across all points
+    - Full test coverage in `tests/geometry/test_primitives.py`
 
-21. **`Line` / `Ray` / `Segment` primitives**
-    - Useful for beam spans, grid axes, section cut lines
+21. ~~**`Line` / `Ray` / `Segment` primitives**~~ — **Done** (`geometry/primitives.py`, 2026-04-16)
+    - `Segment2D`: directed finite segment; `length`, `direction`, `midpoint`, `vector`, `at(t)`, `closest_point()`, `distance_to_point()`, `intersect()`, `reversed()`, `as_polyline()`, `as_line()`
+    - `Ray2D`: half-line from origin in direction; `at(t)`, `intersect_segment()`, `intersect_line()`, `to_segment()`
+    - `Line2D`: infinite line; `from_two_points()`, `from_segment()` factories; `project()`, `closest_point()`, `distance_to_point()`, `side_of()`, `intersect()`, `intersect_segment()`, `parallel_offset()`, `normal`, `as_ray()`
+    - All types are CRS-tagged, immutable Pydantic models with `transformed()` support
+    - Exported from `archit_app.geometry`; 64 tests in `tests/geometry/test_primitives.py`
 
 22. **`SiteContext` / `Land` consolidation**
     - These two models partially overlap (both have `boundary`, `north_angle`, `address`, `epsg_code`)

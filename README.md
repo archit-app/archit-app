@@ -21,6 +21,7 @@ pip install archit-app
 **Key features:**
 
 - Geometry primitives with coordinate system (CRS) tagging — mixing spaces raises an error immediately
+- **Linear primitives** — `Segment2D` (finite directed segment), `Ray2D` (half-line), `Line2D` (infinite line with `parallel_offset`, `side_of`, `intersect`), `Polyline2D` (ordered point sequence with `segments()`, `bbox()`, `close()`, `to_polygon()`, `intersections()`)
 - **`CoordinateConverter`** — graph-based multi-CRS path-finding; `Point2D.to(target, conv)`; `build_default_converter()` for screen/image/world viewports
 - **Full NURBS evaluator** — `NURBSCurve` uses the Cox–de Boor algorithm (exact rational evaluation, not linear interpolation); `clamped_uniform()` factory for smooth curves through endpoints; supports exact conic sections via rational weights
 - Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns, **staircases, slabs, ramps, elevators, beams**

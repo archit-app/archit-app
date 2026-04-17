@@ -16,6 +16,7 @@ from archit_app.geometry.point import Point2D, Point3D
 from archit_app.geometry.bbox import BoundingBox2D, BoundingBox3D
 from archit_app.geometry.polygon import Polygon2D
 from archit_app.geometry.curve import ArcCurve, BezierCurve, NURBSCurve, CurveBase
+from archit_app.geometry.primitives import Segment2D, Ray2D, Line2D, Polyline2D
 
 __all__ = [
     "CoordinateSystem",
@@ -42,4 +43,8 @@ __all__ = [
     "BezierCurve",
     "NURBSCurve",
     "CurveBase",
+    "Segment2D",
+    "Ray2D",
+    "Line2D",
+    "Polyline2D",
 ]
