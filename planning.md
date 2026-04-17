@@ -712,7 +712,17 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 
 #### P6 — Quality / Developer Experience
 
-24. **`Furniture` element** — even bounding-box placeholders would allow layout studies
+24. ~~**`Furniture` element**~~ — **Done** (`elements/furniture.py`, 2026-04-16)
+    - `FurnitureCategory` enum: 20 categories (SOFA, BED, DESK, TOILET, SINK, …)
+    - `Furniture(Element)`: `footprint: Polygon2D`, `label`, `category`, `width`, `depth`, `height`; `footprint_area`, `bounding_box()`
+    - `Furniture.rectangular()` generic factory; named factories for every common piece:
+      seating (sofa, armchair, dining_chair, office_chair), tables (dining, coffee, round, desk),
+      beds (single/double/queen/king), wardrobe, bookshelf, tv_unit, kitchen_counter, kitchen_island,
+      bathtub, shower, toilet, sink, washing_machine
+    - `Level.add_furniture()`, `furniture` collection, `get_element_by_id()` + `remove_element()` updated
+    - Exported from `archit_app.elements` and top-level `archit_app`
+    - `Segment2D`, `Ray2D`, `Line2D`, `Polyline2D` also added to top-level `archit_app` exports (missed in P4)
+    - 43 tests in `tests/elements/test_furniture.py`
 25. **`Annotation` / dimension element** — dimension lines, labels, section marks; needed for construction documents
 26. **Missing test coverage** — `NURBSCurve`, `BezierCurve`, `Vector2D/3D` ops, `BoundingBox3D`, DXF export, column element, curve transforms have no tests
 27. **`OpeningKind.ARCHWAY` / `PASS_THROUGH` factories** — enum variants exist but no geometry factories

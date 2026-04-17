@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict
 from archit_app.elements.base import Element
 from archit_app.elements.beam import Beam
 from archit_app.elements.column import Column
+from archit_app.elements.furniture import Furniture
 from archit_app.elements.opening import Opening
 from archit_app.elements.ramp import Ramp
 from archit_app.elements.room import Room
@@ -47,6 +48,7 @@ class Level(BaseModel):
     slabs: tuple[Slab, ...] = ()
     ramps: tuple[Ramp, ...] = ()
     beams: tuple[Beam, ...] = ()
+    furniture: tuple[Furniture, ...] = ()
 
     # ------------------------------------------------------------------
     # Queries
@@ -56,6 +58,7 @@ class Level(BaseModel):
         for collection in (
             self.walls, self.rooms, self.openings, self.columns,
             self.staircases, self.slabs, self.ramps, self.beams,
+            self.furniture,
         ):
             for el in collection:
                 if el.id == element_id:
@@ -106,6 +109,9 @@ class Level(BaseModel):
     def add_beam(self, beam: Beam) -> "Level":
         return self.model_copy(update={"beams": (*self.beams, beam)})
 
+    def add_furniture(self, item: Furniture) -> "Level":
+        return self.model_copy(update={"furniture": (*self.furniture, item)})
+
     def remove_element(self, element_id: UUID) -> "Level":
         return self.model_copy(
             update={
@@ -117,6 +123,7 @@ class Level(BaseModel):
                 "slabs": tuple(s for s in self.slabs if s.id != element_id),
                 "ramps": tuple(r for r in self.ramps if r.id != element_id),
                 "beams": tuple(b for b in self.beams if b.id != element_id),
+                "furniture": tuple(f for f in self.furniture if f.id != element_id),
             }
         )
 

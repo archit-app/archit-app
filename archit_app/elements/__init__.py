@@ -9,6 +9,7 @@ from archit_app.elements.slab import Slab, SlabType
 from archit_app.elements.ramp import Ramp, RampType
 from archit_app.elements.elevator import Elevator, ElevatorDoor
 from archit_app.elements.beam import Beam, BeamSection
+from archit_app.elements.furniture import Furniture, FurnitureCategory
 
 __all__ = [
     "Element",
@@ -34,4 +35,6 @@ __all__ = [
     "ElevatorDoor",
     "Beam",
     "BeamSection",
+    "Furniture",
+    "FurnitureCategory",
 ]

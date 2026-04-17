@@ -28,6 +28,7 @@ from archit_app.geometry.point import Point2D, Point3D
 from archit_app.geometry.bbox import BoundingBox2D, BoundingBox3D
 from archit_app.geometry.polygon import Polygon2D
 from archit_app.geometry.curve import ArcCurve, BezierCurve, NURBSCurve, CurveBase
+from archit_app.geometry.primitives import Segment2D, Ray2D, Line2D, Polyline2D
 
 from archit_app.elements.base import Element
 from archit_app.elements.opening import Opening, OpeningKind, SwingGeometry, Frame
@@ -40,6 +41,7 @@ from archit_app.elements.slab import Slab, SlabType
 from archit_app.elements.ramp import Ramp, RampType
 from archit_app.elements.elevator import Elevator, ElevatorDoor
 from archit_app.elements.beam import Beam, BeamSection
+from archit_app.elements.furniture import Furniture, FurnitureCategory
 
 from archit_app.building.land import Land, Setbacks, ZoningInfo
 from archit_app.building.site import SiteContext
@@ -77,6 +79,10 @@ __all__ = [
     "BezierCurve",
     "NURBSCurve",
     "CurveBase",
+    "Segment2D",
+    "Ray2D",
+    "Line2D",
+    "Polyline2D",
     # Elements
     "Element",
     "Opening",
@@ -101,6 +107,8 @@ __all__ = [
     "ElevatorDoor",
     "Beam",
     "BeamSection",
+    "Furniture",
+    "FurnitureCategory",
     # Building / Land
     "Land",
     "Setbacks",
