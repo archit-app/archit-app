@@ -7,6 +7,8 @@ Available formats:
   - GeoJSON (GIS export, no extra deps)          archit_app.io.geojson
   - DXF     (AutoCAD, requires ezdxf)            archit_app.io.dxf
   - IFC 4.x (open BIM, requires ifcopenshell)    archit_app.io.ifc
+  - PNG     (raster at any DPI/scale, Pillow)    archit_app.io.image
+  - PDF     (multi-page, reportlab)              archit_app.io.pdf
 
 Quick access:
 """

@@ -48,6 +48,9 @@ image = [
     "pillow>=10",
     "opencv-python-headless>=4.9",
 ]
+pdf = [
+    "reportlab>=4.0",
+]
 analysis = [
     "networkx>=3.2",
     "scipy>=1.12",

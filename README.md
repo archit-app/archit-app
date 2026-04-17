@@ -35,7 +35,7 @@ pip install archit-app
   - Zoning compliance checker (FAR, lot coverage, height, setbacks)
   - Daylighting and solar orientation report per room
   - Isovist (visibility polygon) from any viewpoint
-- I/O: JSON (fully round-trippable), SVG, GeoJSON, **DXF round-trip** (read + write, optional), **IFC 4.x export** (optional, via `ifcopenshell`)
+- I/O: JSON (fully round-trippable), SVG, GeoJSON, **DXF round-trip** (read + write, optional), **IFC 4.x export** (optional), **PNG raster** (Pillow, optional), **PDF** (reportlab, multi-page, optional)
 - Plugin registry for extending the library without touching core code
 - Immutable Pydantic models throughout — every "mutation" returns a new object
 
@@ -59,10 +59,16 @@ For IFC export (open BIM standard — Revit, ArchiCAD, FreeCAD compatible):
 pip install "archit-app[ifc]"
 ```
 
-For image and panorama support (coming in a future release):
+For PNG raster export (Pillow):
 
 ```bash
 pip install "archit-app[image]"
+```
+
+For PDF export (reportlab):
+
+```bash
+pip install "archit-app[pdf]"
 ```
 
 For graph-based analysis (room adjacency, egress path-finding):
@@ -74,7 +80,7 @@ pip install "archit-app[analysis]"
 For all optional dependencies:
 
 ```bash
-pip install "archit-app[io,ifc,image,analysis]"
+pip install "archit-app[io,ifc,image,pdf,analysis]"
 ```
 
 **Requirements:** Python 3.11+, pydantic ≥ 2.0, shapely ≥ 2.0, numpy ≥ 1.26
@@ -226,6 +232,47 @@ level = level_from_dxf(
 ```
 
 Recognised element types in `layer_mapping`: `"walls"`, `"rooms"`, `"openings"`, `"columns"`.
+
+### Export to PNG (raster)
+
+```python
+# Requires: pip install "archit-app[image]"
+from archit_app.io.image import save_level_png, save_building_pngs, level_to_png_bytes
+
+# Single level at 100 px/m, 150 DPI
+save_level_png(ground, "ground_floor.png", pixels_per_meter=100, dpi=150)
+
+# All levels — one PNG per level — into a directory
+save_building_pngs(building, "output/", pixels_per_meter=100, dpi=150)
+
+# Raw bytes (e.g. for HTTP response or in-memory processing)
+png_bytes = level_to_png_bytes(ground, pixels_per_meter=100)
+```
+
+Renders rooms, walls, columns, openings, room labels with area, and a 1 m scale bar.
+Uses 2× supersampling for clean anti-aliased edges at any scale.
+
+### Export to PDF
+
+```python
+# Requires: pip install "archit-app[pdf]"
+from archit_app.io.pdf import save_level_pdf, save_building_pdf, level_to_pdf_bytes
+
+# Single level — auto-selects landscape if drawing is wider than tall
+save_level_pdf(ground, "ground_floor.pdf", paper_size="A3")
+
+# All levels in one multi-page PDF (one page per level)
+save_building_pdf(building, "my_house.pdf", paper_size="A3")
+
+# Force portrait, A4
+save_level_pdf(ground, "ground_portrait.pdf", paper_size="A4", landscape=False)
+
+# Raw bytes
+pdf_bytes = level_to_pdf_bytes(ground, paper_size="A3")
+```
+
+Supported paper sizes: `"A1"`, `"A2"`, `"A3"` (default), `"A4"`, `"letter"`.
+Each level is centred and scaled to fill the page.
 
 ### Export to IFC 4.x
 
@@ -488,7 +535,7 @@ archit_app/
 │                            SiteContext, StructuralGrid
 ├── analysis/     Layer 6 — topology, circulation, area, compliance,
 │                            daylighting, visibility
-├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF (read+write), IFC export
+├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF (read+write), IFC, PNG, PDF
 ├── core/         Registry — plugin/extension system
 └── utils/        Unit helpers
 ```

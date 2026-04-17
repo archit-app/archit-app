@@ -522,8 +522,8 @@ Users should never have to think about CRS unless they're doing something unusua
 | GeoJSON | No | Yes | FeatureCollection per level |
 | DXF | Yes | Yes | `ezdxf` required; full round-trip via `level_from_dxf` / `building_from_dxf` |
 | IFC | **No** | Yes | Write-only IFC 4.x; `ifcopenshell` required |
-| PDF | **No** | **No** | Not started |
-| PNG / raster | **No** | **No** | `pillow`/`opencv` listed as optional deps but unused |
+| PDF | No | Yes | Write-only; `reportlab>=4` required (`pip install archit-app[pdf]`) |
+| PNG / raster | No | Yes | Write-only; Pillow required (`pip install archit-app[image]`) |
 
 #### Structural Grid — done
 `building/grid.py` implements `StructuralGrid` and `GridAxis`:
@@ -647,11 +647,21 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - Backward-compatible hatch API fix for ezdxf ≥ 1.0 (`paths.add_polyline_path` vs `edit_boundary`)
     - 24 tests in `tests/io/test_dxf.py` (2 import-guard + 22 round-trip / edge-case tests)
 
-16. **PDF export** (`io/pdf.py`)
-    - Standard deliverable format for architectural drawings
+16. ~~**PDF export**~~ — **Done** (`io/pdf.py`, 2026-04-15)
+    - `level_to_pdf_bytes()`, `save_level_pdf()` — single-page PDF with auto-orient (landscape/portrait)
+    - `building_to_pdf_bytes()`, `save_building_pdf()` — multi-page PDF (one page per Level)
+    - Fitted scaling: drawing centred and scaled to fill chosen paper size (A1–A4, letter)
+    - Renders rooms (filled + label + area), walls, columns, openings, scale bar, title
+    - Optional dep: `pip install archit-app[pdf]` (`reportlab>=4.0`)
+    - 18 tests in `tests/io/test_pdf.py` (2 import-guard + 16 content/file tests)
 
-17. **PNG / raster export** (`io/image.py`)
-    - `pillow`/`opencv` are optional deps but completely unused; add raster rendering at specified DPI/scale
+17. ~~**PNG / raster export**~~ — **Done** (`io/image.py`, 2026-04-15)
+    - `level_to_png_bytes()`, `save_level_png()` — raster at any `pixels_per_meter` and DPI
+    - `save_building_pngs()` — one PNG per level into a directory
+    - 2× supersampling for anti-aliased polygon edges, downscaled via LANCZOS
+    - DPI metadata written into the PNG header
+    - Optional dep: `pip install archit-app[image]` (Pillow ≥ 10, already listed)
+    - 13 tests in `tests/io/test_image.py` (2 import-guard + 11 content/file tests)
 
 #### P4 — Geometry & Infrastructure Gaps
 
@@ -709,6 +719,6 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 6. ✓ Egress / circulation analysis      — done as part of P2
 7. ✓ NURBS evaluator                    — done 2026-04-15  (geometry/curve.py)
 8. ✓ DXF import                        — done 2026-04-15  (io/dxf.py)
-9. PDF / raster export                — standard deliverable formats
+9. ✓ PDF / raster export              — done 2026-04-15  (io/pdf.py + io/image.py)
 10. image/ module (panorama)          — most complex; do last
 ```
