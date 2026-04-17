@@ -723,7 +723,13 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - Exported from `archit_app.elements` and top-level `archit_app`
     - `Segment2D`, `Ray2D`, `Line2D`, `Polyline2D` also added to top-level `archit_app` exports (missed in P4)
     - 43 tests in `tests/elements/test_furniture.py`
-25. **`Annotation` / dimension element** — dimension lines, labels, section marks; needed for construction documents
+25. ~~**`Annotation` / dimension element**~~ — **Done** (`elements/annotation.py`, 2026-04-17)
+    - `TextAnnotation(Element)`: text note at a `Point2D`; `rotation`, `size`, `anchor`; `.note()` and `.room_label()` factories
+    - `DimensionLine(Element)`: measured dimension between two points; `offset` (perpendicular), `measured_distance`, `label` (auto or overridden), `direction`, `normal`, `dimension_line_start/end`, `label_position`; `.between()`, `.horizontal()`, `.vertical()` factories
+    - `SectionMark(Element)`: section-cut indicator; `tag`, `view_direction` (`"left"` / `"right"` / `"both"`), `reference`; `length`, `midpoint`, `cut_line`, `view_vector`; `.horizontal()`, `.vertical()` factories
+    - `Level` gains `text_annotations`, `dimensions`, `section_marks` fields and `add_text_annotation()`, `add_dimension()`, `add_section_mark()` methods; all three integrated into `get_element_by_id()` and `remove_element()`
+    - Exported from `archit_app.elements` and top-level `archit_app`
+    - 56 tests in `tests/elements/test_annotation.py`
 26. **Missing test coverage** — `NURBSCurve`, `BezierCurve`, `Vector2D/3D` ops, `BoundingBox3D`, DXF export, column element, curve transforms have no tests
 27. **`OpeningKind.ARCHWAY` / `PASS_THROUGH` factories** — enum variants exist but no geometry factories
 

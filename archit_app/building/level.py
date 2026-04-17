@@ -10,6 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from archit_app.elements.annotation import DimensionLine, SectionMark, TextAnnotation
 from archit_app.elements.base import Element
 from archit_app.elements.beam import Beam
 from archit_app.elements.column import Column
@@ -49,6 +50,9 @@ class Level(BaseModel):
     ramps: tuple[Ramp, ...] = ()
     beams: tuple[Beam, ...] = ()
     furniture: tuple[Furniture, ...] = ()
+    text_annotations: tuple[TextAnnotation, ...] = ()
+    dimensions: tuple[DimensionLine, ...] = ()
+    section_marks: tuple[SectionMark, ...] = ()
 
     # ------------------------------------------------------------------
     # Queries
@@ -58,7 +62,8 @@ class Level(BaseModel):
         for collection in (
             self.walls, self.rooms, self.openings, self.columns,
             self.staircases, self.slabs, self.ramps, self.beams,
-            self.furniture,
+            self.furniture, self.text_annotations, self.dimensions,
+            self.section_marks,
         ):
             for el in collection:
                 if el.id == element_id:
@@ -112,6 +117,19 @@ class Level(BaseModel):
     def add_furniture(self, item: Furniture) -> "Level":
         return self.model_copy(update={"furniture": (*self.furniture, item)})
 
+    def add_text_annotation(self, annotation: TextAnnotation) -> "Level":
+        return self.model_copy(
+            update={"text_annotations": (*self.text_annotations, annotation)}
+        )
+
+    def add_dimension(self, dimension: DimensionLine) -> "Level":
+        return self.model_copy(update={"dimensions": (*self.dimensions, dimension)})
+
+    def add_section_mark(self, mark: SectionMark) -> "Level":
+        return self.model_copy(
+            update={"section_marks": (*self.section_marks, mark)}
+        )
+
     def remove_element(self, element_id: UUID) -> "Level":
         return self.model_copy(
             update={
@@ -124,6 +142,15 @@ class Level(BaseModel):
                 "ramps": tuple(r for r in self.ramps if r.id != element_id),
                 "beams": tuple(b for b in self.beams if b.id != element_id),
                 "furniture": tuple(f for f in self.furniture if f.id != element_id),
+                "text_annotations": tuple(
+                    a for a in self.text_annotations if a.id != element_id
+                ),
+                "dimensions": tuple(
+                    d for d in self.dimensions if d.id != element_id
+                ),
+                "section_marks": tuple(
+                    s for s in self.section_marks if s.id != element_id
+                ),
             }
         )
 

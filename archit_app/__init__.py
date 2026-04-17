@@ -42,6 +42,7 @@ from archit_app.elements.ramp import Ramp, RampType
 from archit_app.elements.elevator import Elevator, ElevatorDoor
 from archit_app.elements.beam import Beam, BeamSection
 from archit_app.elements.furniture import Furniture, FurnitureCategory
+from archit_app.elements.annotation import TextAnnotation, DimensionLine, SectionMark
 
 from archit_app.building.land import Land, Setbacks, ZoningInfo
 from archit_app.building.site import SiteContext
@@ -109,6 +110,9 @@ __all__ = [
     "BeamSection",
     "Furniture",
     "FurnitureCategory",
+    "TextAnnotation",
+    "DimensionLine",
+    "SectionMark",
     # Building / Land
     "Land",
     "Setbacks",

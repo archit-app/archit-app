@@ -24,7 +24,7 @@ pip install archit-app
 - **Linear primitives** — `Segment2D` (finite directed segment), `Ray2D` (half-line), `Line2D` (infinite line with `parallel_offset`, `side_of`, `intersect`), `Polyline2D` (ordered point sequence with `segments()`, `bbox()`, `close()`, `to_polygon()`, `intersections()`)
 - **`CoordinateConverter`** — graph-based multi-CRS path-finding; `Point2D.to(target, conv)`; `build_default_converter()` for screen/image/world viewports
 - **Full NURBS evaluator** — `NURBSCurve` uses the Cox–de Boor algorithm (exact rational evaluation, not linear interpolation); `clamped_uniform()` factory for smooth curves through endpoints; supports exact conic sections via rational weights
-- Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns, **staircases, slabs, ramps, elevators, beams**, **furniture** (20 categories, 18 named factories — sofa, beds, tables, desk, bathtub, toilet, sink, etc.)
+- Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns, **staircases, slabs, ramps, elevators, beams**, **furniture** (20 categories, 18 named factories — sofa, beds, tables, desk, bathtub, toilet, sink, etc.), **annotations** (`TextAnnotation` with room-label factory, `DimensionLine` with auto-computed labels, `SectionMark` with view-direction arrows)
 - **Wall joining** — `miter_join()`, `butt_join()`, `join_walls()` for clean corner geometry
 - **Structural grid** — named axes (A–H, 1–8), intersection queries, and point snapping
 - Multi-level building structure: `Level → Building`, with elevators and a grid attached at building level

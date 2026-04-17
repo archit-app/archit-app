@@ -1,3 +1,4 @@
+from archit_app.elements.annotation import TextAnnotation, DimensionLine, SectionMark
 from archit_app.elements.base import Element
 from archit_app.elements.opening import Opening, OpeningKind, SwingGeometry, Frame
 from archit_app.elements.wall import Wall, WallType
@@ -37,4 +38,7 @@ __all__ = [
     "BeamSection",
     "Furniture",
     "FurnitureCategory",
+    "TextAnnotation",
+    "DimensionLine",
+    "SectionMark",
 ]
