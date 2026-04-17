@@ -99,31 +99,18 @@ For high-rise support, `Building` just has many `Level` objects. The `vertical_e
 
 ---
 
-## Layer 4 — Image & Panorama Support
+## Layer 4 — Application Infrastructure
 
-This is where it gets interesting for your use case:
+For the package to act as a true application backbone it needs a thin application-layer on top of the data model:
 
 ```
-image/
-├── panorama.py       # EquirectangularImage, CubemapImage
-├── rectification.py  # homography estimation, perspective correction
-├── calibration.py    # camera intrinsics/extrinsics
-└── overlay.py        # project floorplan onto image or vice versa
+archit_app/
+├── query.py          # ElementQuery — filter/select elements across a Level
+├── history.py        # History — immutable undo/redo stack of Building snapshots
+└── viewport.py       # Viewport — view state (active level, pan, zoom, world↔screen)
 ```
 
-```python
-class PanoramaImage:
-    data: np.ndarray
-    projection: ProjectionType    # equirectangular, cubemap, fisheye
-    camera_pose: Pose3D           # where in the building this was shot
-    linked_room: Room | None      # semantic link to floorplan
-
-class RoomRectifier:
-    """Given a perspective photo of a room, recover the planar layout."""
-    def estimate_vanishing_points(self, image) -> VanishingPoints: ...
-    def rectify(self, image, vps) -> RectifiedImage: ...
-    def extract_wall_mask(self, rectified) -> Polygon: ...
-```
+These three modules do not add new data — they organise how an application *works with* the existing immutable model.
 
 ---
 
@@ -404,48 +391,6 @@ def build_default_converter(viewport_height_px: float,
 
 ---
 
-## Handling Non-Euclidean: Panoramas
-
-Panoramas break the flat-plane assumption entirely, so they need their own projection layer sitting *above* the CRS system:
-
-```python
-class ProjectionType(Enum):
-    EQUIRECTANGULAR = auto()   # 360° lat/lon mapped to a rectangle
-    CUBEMAP         = auto()   # six faces
-    FISHEYE         = auto()   # single lens, radial distortion
-    PERSPECTIVE     = auto()   # standard pinhole
-
-@dataclass
-class CameraModel:
-    projection: ProjectionType
-    intrinsics: np.ndarray     # 3×3 K matrix (focal length, principal point)
-    distortion: np.ndarray     # radial/tangential coefficients
-    pose: "Pose3D"             # where the camera sits in world space
-
-class PanoramaProjector:
-    def __init__(self, model: CameraModel): ...
-
-    def image_to_ray(self, pixel: Point2D) -> Ray3D:
-        """Un-project a pixel to a 3D ray in world space."""
-        ...
-
-    def ray_to_image(self, ray: Ray3D) -> Point2D:
-        """Project a world-space ray back to a pixel."""
-        ...
-
-    def intersect_floor_plane(self, pixel: Point2D,
-                               floor_height: float = 0.0) -> Point2D:
-        """
-        Given a pixel in the panorama, find where the corresponding
-        ray hits the floor plane — returns a World-space point.
-        """
-        ...
-```
-
-This lets you click a point on a panorama photo and get a world-space coordinate back — the foundation for semi-automatic floorplan tracing from imagery.
-
----
-
 ## What to Put in Your `__init__.py`
 
 ```python
@@ -476,7 +421,7 @@ Users should never have to think about CRS unless they're doing something unusua
 
 ## Implementation Status & Gap Analysis
 
-*Updated 2026-04-11. Reflects what is actually in the codebase vs. what was planned above.*
+*Updated 2026-04-17. Reflects what is actually in the codebase vs. what was planned above.*
 
 ---
 
@@ -494,36 +439,35 @@ Users should never have to think about CRS unless they're doing something unusua
 - `build_default_converter()` — factory pre-loading SCREEN ↔ IMAGE ↔ WORLD for standard viewports
 - `Point2D.to(target_crs, converter)` — one-call CRS conversion
 
-#### Architectural Elements — partial
+#### Architectural Elements — complete
 | Element | Status |
 |---|---|
 | `Wall` | Done — straight, arc, Bezier, NURBS geometry; 6 wall types; openings attached |
 | `Room` | Done — general polygon + holes; name, program, area, level index |
 | `Opening` (Door, Window) | Done — with sill height, swing arc, frame |
-| `Opening` (Archway, Pass-through) | Enum variant exists; no factory or geometry logic |
+| `Opening` (Archway, Pass-through) | Enum variant exists; **no factory or geometry logic** |
 | `Column` | Done — rectangular and circular factories |
 | `Staircase` | Done — straight factory; rise/run/width/direction; level links; `total_rise`, `slope_angle` |
 | `Slab` | Done — floor/ceiling/roof plate; penetration holes; `rectangular()` factory |
 | `Ramp` | Done — slope angle, direction, level links; `slope_percent`, `total_rise`; `straight()` factory |
 | `Elevator` + `ElevatorDoor` | Done — shaft polygon, cab dimensions, per-level doors; `rectangular()` factory |
 | `Beam` | Done — accurate span (centreline length), soffit elevation; `straight()` factory |
-| `Level` | Done — holds walls, rooms, openings, columns, staircases, slabs, ramps, beams |
-| `Building` + `BuildingMetadata` | Done — holds levels, elevators, and optional `StructuralGrid` |
-| `Land` | Done — GPS latlon or metric polygon, setbacks, ZoningInfo, `to_agent_context()` |
-| `SiteContext` | Minimal — boundary + north_angle + address only |
-| `Furniture` | **Missing** |
-| `Annotation` / Dimension | **Missing** |
+| `Furniture` | Done — 20-category enum; 18+ named factories; `footprint_area`, `bounding_box()` |
+| `TextAnnotation`, `DimensionLine`, `SectionMark` | Done — note/label/section-cut; factories; `cut_line`, `label_position` |
+| `Level` | Done — all element collections; `add_*`, `remove_element()`, `get_element_by_id()`, `bounding_box()` |
+| `Building` + `BuildingMetadata` | Done — levels, elevators, optional grid; `total_gross_area()` |
+| `Land` / `SiteContext` | Done — GPS or metric boundary, setbacks, zoning, `to_agent_context()`; `SiteContext` is an alias |
 
 #### I/O — partial
 | Format | Read | Write | Notes |
 |---|---|---|---|
-| JSON | Yes | Yes | Full round-trip, versioned |
-| SVG | No | Yes | Rooms, walls, openings, columns, scale bar |
-| GeoJSON | No | Yes | FeatureCollection per level |
-| DXF | Yes | Yes | `ezdxf` required; full round-trip via `level_from_dxf` / `building_from_dxf` |
+| JSON | Yes | Yes | Full round-trip, versioned (`"version": "0.2.0"`); no migration logic yet |
+| SVG | No | Yes | Rooms, walls, openings, columns, scale bar; **furniture/annotations/dimensions not rendered** |
+| GeoJSON | **No** | Yes | FeatureCollection per level; import not implemented |
+| DXF | Yes | Yes | `ezdxf` required; full round-trip |
 | IFC | **No** | Yes | Write-only IFC 4.x; `ifcopenshell` required |
-| PDF | No | Yes | Write-only; `reportlab>=4` required (`pip install archit-app[pdf]`) |
-| PNG / raster | No | Yes | Write-only; Pillow required (`pip install archit-app[image]`) |
+| PDF | No | Yes | Write-only; `reportlab>=4` required |
+| PNG / raster | No | Yes | Write-only; Pillow required |
 
 #### Structural Grid — done
 `building/grid.py` implements `StructuralGrid` and `GridAxis`:
@@ -704,12 +648,6 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - `analysis/compliance.py` guards boundary-dependent checks with `land.boundary is not None`
     - 13 new tests in `tests/building/test_land.py`
 
-#### P5 — Image / Panorama Layer (entire module missing)
-
-23. **`image/` module**
-    - `panorama.py`, `rectification.py`, `calibration.py`, `overlay.py` — all planned, none implemented
-    - `CameraModel`, `PanoramaProjector`, `RoomRectifier` from the design above are the right starting point
-
 #### P6 — Quality / Developer Experience
 
 24. ~~**`Furniture` element**~~ — **Done** (`elements/furniture.py`, 2026-04-16)
@@ -738,20 +676,135 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - `tests/elements/test_column.py` — 16 tests: `Column` rectangular/circular factories, footprint area, bounding_box, material, shape enum, `with_tag`, frozen
     - Total suite: **719 passed**, 26 skipped
 27. **`OpeningKind.ARCHWAY` / `PASS_THROUGH` factories** — enum variants exist but no geometry factories
+    - `Opening.archway(x, y, width, height, wall_thickness)` — arched top (semicircular arc geometry); no swing, no sill
+    - `Opening.pass_through(x, y, width, height, wall_thickness)` — low counter-height opening; `sill_height > 0`
+
+---
+
+#### P7 — Application Infrastructure (critical for backbone role)
+
+These three modules are what separate a data library from an application backbone.
+
+28. **Selection & query system** (`archit_app/query.py`)
+    - `ElementQuery` — fluent builder that filters elements across a `Level`
+    - `.walls()`, `.rooms()`, `.openings()`, `.columns()`, `.furniture()`, `.all()` — type filters
+    - `.on_layer(name)` — layer filter
+    - `.tagged(key)`, `.tagged(key, value)` — tag presence / value filter
+    - `.within_bbox(bbox)` — spatial filter (element bounding box overlaps query box)
+    - `.with_program(program)` — room-specific program filter
+    - `.first()`, `.list()`, `.count()` — terminal methods
+    - `query(level)` top-level factory function
+    - Tests in `tests/test_query.py`
+
+29. **Undo / redo history** (`archit_app/history.py`)
+    - `History` — immutable stack of `Building` snapshots (leverages existing immutability)
+    - `History.start(building)` — class-method factory
+    - `.push(building)` — returns new `History` with the snapshot appended; truncates redo branch
+    - `.undo()` — returns `(building, new_history)` or raises `HistoryError` if at beginning
+    - `.redo()` — returns `(building, new_history)` or raises `HistoryError` if at end
+    - `.can_undo`, `.can_redo` — boolean properties
+    - `.current` — the present `Building`
+    - `max_snapshots: int = 100` — configurable cap; oldest snapshot dropped when exceeded
+    - Tests in `tests/test_history.py`
+
+30. **Viewport model** (`archit_app/viewport.py`)
+    - `Viewport` — immutable Pydantic model for view state
+    - Fields: `canvas_width_px`, `canvas_height_px`, `pixels_per_meter`, `pan_x`, `pan_y` (world-space), `active_level_index`
+    - `world_to_screen(point: Point2D) → tuple[float, float]` — apply pan + scale + Y-flip
+    - `screen_to_world(sx, sy) → Point2D` — inverse
+    - `zoom(factor, around_sx, around_sy) → Viewport` — zoom centred on a screen point
+    - `pan(dx_px, dy_px) → Viewport` — returns new viewport
+    - `fit(bbox: BoundingBox2D, padding=0.1) → Viewport` — fit a world bbox into the canvas
+    - `to_converter() → CoordinateConverter` — build a `CoordinateConverter` from current state
+    - Tests in `tests/test_viewport.py`
+
+---
+
+#### P8 — Element & Model Completeness
+
+31. **Material registry** (`archit_app/elements/material.py`)
+    - `Material` — Pydantic model: `name`, `color_hex: str`, `category` (enum: CONCRETE, BRICK, TIMBER, GLASS, STEEL, GYPSUM, TILE, OTHER), `thermal_conductivity_wm: float | None`, `description: str`
+    - `MaterialLibrary` — registry: `register(material)`, `get(name)`, `all()`, `by_category(cat)`
+    - `BUILTIN_MATERIALS` — 12 preset materials (concrete, brick, timber, glass, steel, gypsum, plaster, tile, stone, insulation, aluminium, carpet)
+    - `Wall`, `Slab`, `Beam`, `Column` `material` fields stay as `str | None` (backward-compat); `Material` is a separate lookup layer
+    - Tests in `tests/elements/test_material.py`
+
+32. **`Level.replace_element()`** — currently `add_*` + `remove_element()` exist but no atomic replace
+    - `Level.replace_element(element_id: UUID, new_element: Element) → Level`
+    - Finds the collection containing `element_id`, substitutes in-place maintaining order
+    - Raises `KeyError` if id not found
+    - Tests added to existing element test files
+
+33. **`Building.stats()`** — structured summary for dashboards and agent context
+    - `BuildingStats` — Pydantic model returned by `building.stats()`
+    - Fields: `total_levels`, `total_rooms`, `total_walls`, `total_openings`, `total_columns`, `total_furniture`, `gross_floor_area_m2`, `net_floor_area_m2` (sum of room areas), `area_by_program: dict[str, float]`, `element_counts_by_level: list[dict]`
+    - Tests in `tests/building/test_stats.py`
+
+---
+
+#### P9 — Analysis Completeness
+
+34. **Accessibility analysis** (`archit_app/analysis/accessibility.py`)
+    - `check_accessibility(level) → AccessibilityReport`
+    - `AccessibilityCheck` — name, passed, detail, element_id
+    - Checks: door clear width ≥ 0.85 m, corridor width ≥ 1.2 m (widest gap between parallel walls), ramp slope ≤ 1:12 (≈ 4.8°), turning circle (0.9 m radius) fits in wet rooms
+    - `AccessibilityReport.passed_all`, `.failures`, `.warnings`
+    - Tests in `tests/analysis/test_accessibility.py`
+
+35. **Room-from-walls auto-detection** (`archit_app/analysis/roomfinder.py`)
+    - `find_rooms(walls: list[Wall], *, min_area=0.5) → list[Polygon2D]`
+    - Polygonises the wall centre-lines using Shapely `polygonize`; filters by min area; returns candidate room outlines
+    - `rooms_from_walls(walls, *, level_index=0, program="unknown", min_area=0.5) → list[Room]`
+    - High-level helper: calls `find_rooms` then wraps each polygon in a `Room`
+    - Tests in `tests/analysis/test_roomfinder.py`
+
+---
+
+#### P10 — I/O Completeness
+
+36. **SVG renderer completeness** — furniture, annotations, dimensions, beams, ramps, section marks not rendered
+    - `_render_furniture(furniture, vt, parent)` — footprint polygon + label centred inside
+    - `_render_beam(beam, vt, parent)` — dashed centreline with depth indicator
+    - `_render_ramp(ramp, vt, parent)` — diagonal-line hatching with direction arrow
+    - `_render_text_annotation(ann, vt, parent)` — `<text>` element with rotation and anchor
+    - `_render_dimension_line(dim, vt, parent)` — extension lines + measurement label
+    - `_render_section_mark(mark, vt, parent)` — cut line with triangle end-markers and tag bubble
+    - PDF and PNG renderers extended in `io/pdf.py` and `io/image.py` to match
+    - Tests updated in `tests/io/test_svg.py`
+
+37. **JSON version migration** (`archit_app/io/json_schema.py`)
+    - `migrate_json(data: dict) → dict` — upgrades old JSON snapshots to current schema
+    - `CURRENT_VERSION = "0.2.0"` constant
+    - Migration table: `{"0.1.0": _migrate_0_1_to_0_2}` keyed by from-version
+    - `_migrate_0_1_to_0_2` handles: `"site"` → `"land"` key rename, adds missing `"furniture"` / `"text_annotations"` / `"dimensions"` / `"section_marks"` arrays
+    - `building_from_dict` calls `migrate_json` before deserializing
+    - Tests in `tests/io/test_json_migration.py`
 
 ---
 
 ### Recommended Build Order
 
 ```
-1. ✓ Staircase, Slab, Ramp, Elevator, Beam, StructuralGrid, wall joining  (done 2026-04-14)
-2. ✓ Room adjacency graph, egress, area validation, compliance, daylighting, isovist  (done 2026-04-14)
-3. ✓ Zoning compliance checker          — closed as part of P2 analysis layer
-4. ✓ CoordinateConverter                — done 2026-04-15  (geometry/converter.py)
-5. ✓ IFC export                         — done 2026-04-15  (io/ifc.py)
-6. ✓ Egress / circulation analysis      — done as part of P2
-7. ✓ NURBS evaluator                    — done 2026-04-15  (geometry/curve.py)
-8. ✓ DXF import                        — done 2026-04-15  (io/dxf.py)
-9. ✓ PDF / raster export              — done 2026-04-15  (io/pdf.py + io/image.py)
-10. image/ module (panorama)          — most complex; do last
+1.  ✓ Staircase, Slab, Ramp, Elevator, Beam, StructuralGrid, wall joining  (done 2026-04-14)
+2.  ✓ Room adjacency graph, egress, area validation, compliance, daylighting, isovist  (done 2026-04-14)
+3.  ✓ Zoning compliance checker          — closed as part of P2 analysis layer
+4.  ✓ CoordinateConverter                — done 2026-04-15  (geometry/converter.py)
+5.  ✓ IFC export                         — done 2026-04-15  (io/ifc.py)
+6.  ✓ Egress / circulation analysis      — done as part of P2
+7.  ✓ NURBS evaluator                    — done 2026-04-15  (geometry/curve.py)
+8.  ✓ DXF import                        — done 2026-04-15  (io/dxf.py)
+9.  ✓ PDF / raster export               — done 2026-04-15  (io/pdf.py + io/image.py)
+10. ✓ Furniture element                  — done 2026-04-16  (elements/furniture.py)
+11. ✓ Annotations / dimensions           — done 2026-04-17  (elements/annotation.py)
+12. ✓ Missing test coverage              — done 2026-04-17  (tests/geometry/, tests/elements/)
+13.   Archway / pass-through factories   (P8 item 27)
+14.   Selection & query system           (P7 item 28) ← highest application value
+15.   Undo / redo history                (P7 item 29)
+16.   Viewport model                     (P7 item 30)
+17.   Material registry                  (P8 item 31)
+18.   Level.replace_element + Building.stats  (P8 items 32–33)
+19.   Accessibility analysis             (P9 item 34)
+20.   Room-from-walls auto-detection     (P9 item 35)
+21.   SVG/PDF/PNG renderer completeness  (P10 item 36)
+22.   JSON version migration             (P10 item 37)
 ```
