@@ -71,6 +71,15 @@ _PAL = {
     "scale_bar":     ( 51,  51,  51),
     "room_label":    ( 26,  58,  92),
     "annotation":    (102, 102, 102),
+    # Extended palette
+    "furniture_fill":   (255, 248, 220),
+    "furniture_stroke": (160, 132,  92),
+    "beam_stroke":      (123,  63,   0),
+    "ramp_stroke":      ( 74, 144, 217),
+    "ramp_arrow":       ( 44,  95, 138),
+    "dim_line":         (136, 136, 136),
+    "dim_text":         ( 85,  85,  85),
+    "section_line":     (204,  34,   0),
 }
 
 _MARGIN = 40   # pixels (before supersampling)
@@ -173,6 +182,78 @@ def _render_openings(draw, level: Level, vt: _VT) -> None:
         _render_single_opening(draw, opening, vt)
 
 
+def _render_furniture(draw, level: Level, vt: _VT, font_small) -> None:
+    for furn in level.furniture:
+        pts = _poly_pts(furn.footprint.exterior, vt)
+        _draw_polygon(draw, pts, fill=_PAL["furniture_fill"], outline=_PAL["furniture_stroke"])
+        label = furn.label or furn.category.value.replace("_", " ").title()
+        if label:
+            c = furn.footprint.centroid
+            cx, cy = vt.pt(c)
+            draw.text((cx, cy), label, fill=_PAL["furniture_stroke"], font=font_small, anchor="mm")
+
+
+def _render_beams(draw, level: Level, vt: _VT) -> None:
+    for beam in level.beams:
+        pts = _geom_pts(beam.geometry, vt)
+        # Draw outline only (no fill) with dashed line approximated by segments
+        if len(pts) >= 2:
+            draw.polygon(pts, fill=None, outline=_PAL["beam_stroke"])
+
+
+def _render_ramps(draw, level: Level, vt: _VT, font_small) -> None:
+    import math as _math
+    for ramp in level.ramps:
+        pts = _geom_pts(ramp.boundary, vt)
+        _draw_polygon(draw, pts, fill=(74, 144, 217, 40), outline=_PAL["ramp_stroke"])
+        # Direction arrow
+        c = ramp.boundary.centroid
+        cx, cy = vt.pt(c)
+        arrow_len = vt.s(min(ramp.width, 0.8) * 0.5)
+        dx = _math.cos(ramp.direction) * arrow_len
+        dy = -_math.sin(ramp.direction) * arrow_len  # Y-flip
+        x1, y1 = cx - dx * 0.5, cy - dy * 0.5
+        x2, y2 = cx + dx * 0.5, cy + dy * 0.5
+        draw.line([(x1, y1), (x2, y2)], fill=_PAL["ramp_arrow"], width=max(1, int(vt.s(0.03))))
+
+
+def _render_dimensions(draw, level: Level, vt: _VT, font_small) -> None:
+    for dim in level.dimensions:
+        sx_s, sy_s = vt.pt(dim.start)
+        sx_e, sy_e = vt.pt(dim.end)
+        dl_s = vt.pt(dim.dimension_line_start)
+        dl_e = vt.pt(dim.dimension_line_end)
+        lp = vt.pt(dim.label_position)
+
+        draw.line([(sx_s, sy_s), dl_s], fill=_PAL["dim_line"], width=1)
+        draw.line([(sx_e, sy_e), dl_e], fill=_PAL["dim_line"], width=1)
+        draw.line([dl_s, dl_e], fill=_PAL["dim_line"], width=1)
+        draw.text((lp[0], lp[1] - 4), dim.label,
+                  fill=_PAL["dim_text"], font=font_small, anchor="mb")
+
+
+def _render_section_marks(draw, level: Level, vt: _VT, font_small) -> None:
+    for mark in level.section_marks:
+        cl = mark.cut_line
+        sx_s, sy_s = vt.pt(cl.start)
+        sx_e, sy_e = vt.pt(cl.end)
+        draw.line([(sx_s, sy_s), (sx_e, sy_e)], fill=_PAL["section_line"], width=2)
+
+        mp = mark.midpoint
+        mx, my = vt.pt(mp)
+        r = max(5, int(vt.s(0.1)))
+        draw.ellipse([mx - r, my - r, mx + r, my + r],
+                     fill=(255, 255, 255), outline=_PAL["section_line"])
+        draw.text((mx, my), mark.tag,
+                  fill=_PAL["section_line"], font=font_small, anchor="mm")
+
+
+def _render_text_annotations(draw, level: Level, vt: _VT, font_small) -> None:
+    for ann in level.text_annotations:
+        px, py = vt.pt(ann.position)
+        draw.text((px, py), ann.text, fill=_PAL["annotation"], font=font_small, anchor="mm")
+
+
 def _render_scale_bar(draw, vt: _VT, font_small) -> None:
     bar_len = int(vt.ppm)      # 1 meter in pixels
     bx = int(vt.margin)
@@ -253,9 +334,15 @@ def level_to_png_bytes(
         font = font_small = None
 
     _render_rooms(draw, level, vt, font, font_small)
+    _render_ramps(draw, level, vt, font_small)
     _render_walls(draw, level, vt)
     _render_openings(draw, level, vt)
+    _render_beams(draw, level, vt)
     _render_columns(draw, level, vt)
+    _render_furniture(draw, level, vt, font_small)
+    _render_dimensions(draw, level, vt, font_small)
+    _render_section_marks(draw, level, vt, font_small)
+    _render_text_annotations(draw, level, vt, font_small)
     _render_scale_bar(draw, vt, font_small)
 
     if title is None:

@@ -758,15 +758,17 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 
 #### P10 — I/O Completeness
 
-36. **SVG renderer completeness** — furniture, annotations, dimensions, beams, ramps, section marks not rendered
-    - `_render_furniture(furniture, vt, parent)` — footprint polygon + label centred inside
-    - `_render_beam(beam, vt, parent)` — dashed centreline with depth indicator
-    - `_render_ramp(ramp, vt, parent)` — diagonal-line hatching with direction arrow
-    - `_render_text_annotation(ann, vt, parent)` — `<text>` element with rotation and anchor
-    - `_render_dimension_line(dim, vt, parent)` — extension lines + measurement label
-    - `_render_section_mark(mark, vt, parent)` — cut line with triangle end-markers and tag bubble
-    - PDF and PNG renderers extended in `io/pdf.py` and `io/image.py` to match
-    - Tests updated in `tests/io/test_svg.py`
+36. ✅ **SVG/PDF/PNG renderer completeness** — **Done** (2026-04-17)
+    - `_render_furniture` — filled footprint polygon + centred label (category fallback)
+    - `_render_beam` — dashed footprint outline + dashed centreline
+    - `_render_ramp` — outline + diagonal hatch + direction arrow (with `<marker>` arrowhead in SVG defs)
+    - `_render_text_annotation` — `<text>` with rotation + anchor (SVG) / `c.translate+rotate` (PDF)
+    - `_render_dimension_line` — extension lines + measurement line + label
+    - `_render_section_mark` — dashed cut line + circle tag bubble + filled triangles
+    - All new renderers implemented in SVG (`io/svg.py`), PDF (`io/pdf.py`), and PNG (`io/image.py`)
+    - Render layer order: rooms → ramps → walls/openings → beams → columns → furniture → dimensions → section marks → annotations
+    - Extended `PALETTE` / `_PAL` in all three renderers (furniture, beam, ramp, dim, section colours)
+    - 32 new tests in `tests/io/test_renderer_elements.py`
 
 37. ✅ **JSON version migration** (`archit_app/io/json_schema.py`) — **Done** (2026-04-17)
     - `migrate_json(data: dict) → dict` — upgrades old JSON snapshots to current schema
@@ -802,5 +804,5 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 19. ✓ Accessibility analysis             (P9 item 34, done 2026-04-17)
 20. ✓ Room-from-walls auto-detection     (P9 item 35, done 2026-04-17)
 21. ✓ JSON version migration             (P10 item 37, done 2026-04-17)
-22.   SVG/PDF/PNG renderer completeness  (P10 item 36) ← next
+22. ✓ SVG/PDF/PNG renderer completeness  (P10 item 36, done 2026-04-17)
 ```

@@ -74,6 +74,15 @@ _PAL = {
     "scale_bar":     _c( 51,  51,  51),
     "room_label":    _c( 26,  58,  92),
     "annotation":    _c(102, 102, 102),
+    # Extended palette
+    "furniture_fill":   _c(255, 248, 220),
+    "furniture_stroke": _c(160, 132,  92),
+    "beam_stroke":      _c(123,  63,   0),
+    "ramp_stroke":      _c( 74, 144, 217),
+    "ramp_arrow":       _c( 44,  95, 138),
+    "dim_line":         _c(136, 136, 136),
+    "dim_text":         _c( 85,  85,  85),
+    "section_line":     _c(204,  34,   0),
 }
 
 _MARGIN_PT = 36.0   # 0.5 inch margin
@@ -206,6 +215,116 @@ def _render_openings(c, level: Level, vt: _VT) -> None:
         _render_single_opening(c, opening, vt)
 
 
+def _render_furniture(c, level: Level, vt: _VT, font_size: float) -> None:
+    for furn in level.furniture:
+        pts = [vt.pt(p) for p in furn.footprint.exterior]
+        _draw_polygon(c, pts, _PAL["furniture_fill"], _PAL["furniture_stroke"], 0.3)
+        label = furn.label or furn.category.value.replace("_", " ").title()
+        if label:
+            centroid = furn.footprint.centroid
+            cx, cy = vt.pt(centroid)
+            _set_fill(c, _PAL["furniture_stroke"])
+            c.setFont("Helvetica", max(4.0, font_size * 0.7))
+            c.drawCentredString(cx, cy - font_size * 0.25, label)
+
+
+def _render_beams(c, level: Level, vt: _VT) -> None:
+    for beam in level.beams:
+        pts = [vt.pt(p) for p in beam.geometry.exterior]
+        _set_fill(c, (1, 1, 1))
+        _set_stroke(c, _PAL["beam_stroke"], 0.8)
+        c.setDash(4, 2)
+        path = c.beginPath()
+        if pts:
+            path.moveTo(*pts[0])
+            for x, y in pts[1:]:
+                path.lineTo(x, y)
+            path.close()
+        c.drawPath(path, fill=0, stroke=1)
+        c.setDash()  # reset dash
+
+
+def _render_ramps(c, level: Level, vt: _VT) -> None:
+    import math as _math
+    for ramp in level.ramps:
+        pts = [vt.pt(p) for p in ramp.boundary.exterior]
+        _set_fill(c, (1, 1, 1))
+        _set_stroke(c, _PAL["ramp_stroke"], 0.8)
+        path = c.beginPath()
+        if pts:
+            path.moveTo(*pts[0])
+            for x, y in pts[1:]:
+                path.lineTo(x, y)
+            path.close()
+        c.drawPath(path, fill=0, stroke=1)
+
+        # Direction arrow at centroid
+        centroid = ramp.boundary.centroid
+        cx, cy = vt.pt(centroid)
+        arrow_len = vt.s(min(ramp.width, 0.8) * 0.5)
+        dx = _math.cos(ramp.direction) * arrow_len
+        dy = _math.sin(ramp.direction) * arrow_len  # PDF Y-up — no flip
+        _set_stroke(c, _PAL["ramp_arrow"], 1.0)
+        c.line(cx - dx * 0.5, cy - dy * 0.5, cx + dx * 0.5, cy + dy * 0.5)
+
+
+def _render_dimensions(c, level: Level, vt: _VT, font_size: float) -> None:
+    for dim in level.dimensions:
+        sx_s, sy_s = vt.pt(dim.start)
+        sx_e, sy_e = vt.pt(dim.end)
+        dl_s = vt.pt(dim.dimension_line_start)
+        dl_e = vt.pt(dim.dimension_line_end)
+        lp = vt.pt(dim.label_position)
+
+        _set_stroke(c, _PAL["dim_line"], 0.4)
+        c.setDash(3, 2)
+        c.line(sx_s, sy_s, dl_s[0], dl_s[1])
+        c.line(sx_e, sy_e, dl_e[0], dl_e[1])
+        c.setDash()
+        c.line(dl_s[0], dl_s[1], dl_e[0], dl_e[1])
+
+        _set_fill(c, _PAL["dim_text"])
+        c.setFont("Helvetica", max(4.0, font_size * 0.75))
+        c.drawCentredString(lp[0], lp[1] + 2, dim.label)
+
+
+def _render_section_marks(c, level: Level, vt: _VT, font_size: float) -> None:
+    import math as _math
+    for mark in level.section_marks:
+        cl = mark.cut_line
+        sx_s, sy_s = vt.pt(cl.start)
+        sx_e, sy_e = vt.pt(cl.end)
+
+        _set_stroke(c, _PAL["section_line"], 1.2)
+        c.setDash(6, 3)
+        c.line(sx_s, sy_s, sx_e, sy_e)
+        c.setDash()
+
+        # Tag circle at midpoint
+        mp = mark.midpoint
+        mx, my = vt.pt(mp)
+        r = max(4.0, vt.s(0.1))
+        c.setFillColorRGB(1, 1, 1)
+        _set_stroke(c, _PAL["section_line"], 1.0)
+        c.circle(mx, my, r, fill=1, stroke=1)
+        _set_fill(c, _PAL["section_line"])
+        c.setFont("Helvetica-Bold", max(4.0, r * 1.0))
+        c.drawCentredString(mx, my - r * 0.4, mark.tag)
+
+
+def _render_text_annotations(c, level: Level, vt: _VT, font_size: float) -> None:
+    import math as _math
+    for ann in level.text_annotations:
+        px, py = vt.pt(ann.position)
+        _set_fill(c, _PAL["annotation"])
+        c.setFont("Helvetica", max(5.0, font_size * 0.8))
+        c.saveState()
+        c.translate(px, py)
+        c.rotate(_math.degrees(ann.rotation))
+        c.drawCentredString(0, 0, ann.text)
+        c.restoreState()
+
+
 def _render_scale_bar(c, vt: _VT, margin: float, page_h: float) -> None:
     bar_len = vt.s(1.0)   # 1 meter in PDF points
     bx = margin
@@ -258,9 +377,15 @@ def _draw_level_page(
     font_size = max(5.0, vt.s(0.18))
 
     _render_rooms(c, level, vt, font_size)
+    _render_ramps(c, level, vt)
     _render_walls(c, level, vt)
     _render_openings(c, level, vt)
+    _render_beams(c, level, vt)
     _render_columns(c, level, vt)
+    _render_furniture(c, level, vt, font_size)
+    _render_dimensions(c, level, vt, font_size)
+    _render_section_marks(c, level, vt, font_size)
+    _render_text_annotations(c, level, vt, font_size)
     _render_scale_bar(c, vt, margin, page_h)
     _render_title(c, title, vt, margin, page_h, font_size)
 

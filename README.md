@@ -578,7 +578,7 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Level / Building utilities | Done | `Level.replace_element()`, `Building.stats()` → `BuildingStats` |
 | Analysis completeness | Done | Accessibility checker, room-from-walls auto-detection |
 | JSON migration | Done | `migrate_json()` — upgrades 0.1.0 → 0.2.0 snapshots |
-| I/O completeness | Planned | SVG/PDF/PNG render furniture+annotations; GeoJSON import |
+| I/O completeness | Done | SVG/PDF/PNG now render furniture, beams, ramps, annotations, dimensions, section marks |
 
 ---
 
