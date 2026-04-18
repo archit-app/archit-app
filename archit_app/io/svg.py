@@ -64,6 +64,10 @@ PALETTE = {
     "dim_text": "#555555",
     "section_line": "#CC2200",     # red cut line
     "section_text": "#CC2200",
+    "stair_fill": "#E8F4E8",       # light green
+    "stair_stroke": "#2E7D32",
+    "slab_fill": "none",
+    "slab_stroke": "#8D6E63",      # brown
 }
 
 MARGIN_PX = 40  # canvas margin in pixels
@@ -193,11 +197,12 @@ def _render_room(room: Room, vt: ViewTransform, parent: ET.Element) -> None:
             text_el.text = line
 
 
-def _render_wall(wall: Wall, vt: ViewTransform, parent: ET.Element) -> None:
+def _render_wall(wall: Wall, vt: ViewTransform, parent: ET.Element,
+                 fill_override: str | None = None) -> None:
     d = _geom_to_path(wall.geometry, vt)
     ET.SubElement(parent, "path", {
         "d": d,
-        "fill": PALETTE["wall_fill"],
+        "fill": fill_override or PALETTE["wall_fill"],
         "stroke": PALETTE["wall_stroke"],
         "stroke-width": PALETTE["wall_stroke_width"],
         "class": "wall",
@@ -205,15 +210,14 @@ def _render_wall(wall: Wall, vt: ViewTransform, parent: ET.Element) -> None:
 
 
 def _render_opening(opening: Opening, vt: ViewTransform, parent: ET.Element) -> None:
-    if opening.kind == OpeningKind.DOOR:
-        fill = PALETTE["door_fill"]
-        stroke = PALETTE["door_stroke"]
+    if opening.kind == OpeningKind.ARCHWAY:
+        fill, stroke = "#D7CCC8", "#6D4C41"  # brown
+    elif opening.kind == OpeningKind.PASS_THROUGH:
+        fill, stroke = PALETTE["window_fill"], PALETTE["window_stroke"]
     elif opening.kind == OpeningKind.WINDOW:
-        fill = PALETTE["window_fill"]
-        stroke = PALETTE["window_stroke"]
-    else:
-        fill = PALETTE["door_fill"]
-        stroke = PALETTE["door_stroke"]
+        fill, stroke = PALETTE["window_fill"], PALETTE["window_stroke"]
+    else:  # DOOR
+        fill, stroke = PALETTE["door_fill"], PALETTE["door_stroke"]
 
     d = _polygon2d_path(opening.geometry, vt)
     ET.SubElement(parent, "path", {
@@ -224,8 +228,8 @@ def _render_opening(opening: Opening, vt: ViewTransform, parent: ET.Element) -> 
         "class": f"opening {opening.kind.value}",
     })
 
-    # Door swing arc
-    if opening.swing is not None:
+    # Door swing arc (only for DOOR kind)
+    if opening.kind == OpeningKind.DOOR and opening.swing is not None:
         arc_pts = [vt.pt_to_svg(p) for p in opening.swing.arc.to_polyline(24)]
         if arc_pts:
             d_arc = f"M {arc_pts[0][0]:.3f} {arc_pts[0][1]:.3f}"
@@ -240,11 +244,12 @@ def _render_opening(opening: Opening, vt: ViewTransform, parent: ET.Element) -> 
             })
 
 
-def _render_column(col: Column, vt: ViewTransform, parent: ET.Element) -> None:
+def _render_column(col: Column, vt: ViewTransform, parent: ET.Element,
+                   fill_override: str | None = None) -> None:
     d = _polygon2d_path(col.geometry, vt)
     ET.SubElement(parent, "path", {
         "d": d,
-        "fill": PALETTE["column_fill"],
+        "fill": fill_override or PALETTE["column_fill"],
         "stroke": PALETTE["column_stroke"],
         "stroke-width": PALETTE["column_stroke_width"],
         "class": "column",
@@ -356,6 +361,55 @@ def _render_ramp(ramp, vt: ViewTransform, parent: ET.Element) -> None:
         "stroke": PALETTE["ramp_arrow"],
         "stroke-width": "1.5",
         "marker-end": "url(#arrowhead)",
+    })
+
+
+def _render_staircase(stair, vt: ViewTransform, parent: ET.Element) -> None:
+    """Render a Staircase: boundary outline + tread lines + direction arrow."""
+    import math as _math
+    d = _polygon2d_path(stair.boundary, vt)
+    ET.SubElement(parent, "path", {
+        "d": d, "fill": PALETTE["stair_fill"],
+        "stroke": PALETTE["stair_stroke"], "stroke-width": "0.75",
+        "class": "staircase",
+    })
+    # Draw tread lines parallel to width direction
+    bb = stair.boundary.bounding_box()
+    sx0, sy0 = vt.to_svg(bb.min_corner.x, bb.min_corner.y)
+    sx1, sy1 = vt.to_svg(bb.max_corner.x, bb.max_corner.y)
+    cos_d = _math.cos(stair.direction + _math.pi / 2)
+    sin_d = _math.sin(stair.direction + _math.pi / 2)
+    step_size = vt.scale(stair.run_depth)
+    travel_len = max(abs(sx1 - sx0), abs(sy1 - sy0))
+    n_treads = max(1, int(travel_len / max(step_size, 1)))
+    cx = (sx0 + sx1) / 2
+    cy = (sy0 + sy1) / 2
+    half_w = max(abs(sx1 - sx0), abs(sy1 - sy0)) * 0.4
+    tread_g = ET.SubElement(parent, "g", {"clip-path": f"path('{d}')"})
+    for i in range(n_treads + 1):
+        t = -0.5 + i / max(n_treads, 1)
+        dx = _math.cos(stair.direction) * travel_len * t
+        dy = -_math.sin(stair.direction) * travel_len * t
+        lx1 = cx + dx - cos_d * half_w
+        ly1 = cy + dy + sin_d * half_w
+        lx2 = cx + dx + cos_d * half_w
+        ly2 = cy + dy - sin_d * half_w
+        ET.SubElement(tread_g, "line", {
+            "x1": str(round(lx1, 2)), "y1": str(round(ly1, 2)),
+            "x2": str(round(lx2, 2)), "y2": str(round(ly2, 2)),
+            "stroke": PALETTE["stair_stroke"], "stroke-width": "0.4",
+        })
+
+
+def _render_slab(slab, vt: ViewTransform, parent: ET.Element) -> None:
+    """Render a Slab: dashed boundary outline."""
+    from archit_app.elements.slab import SlabType
+    d = _polygon2d_path(slab.boundary, vt)
+    dash = "4 3" if slab.slab_type == SlabType.FLOOR else "2 2"
+    ET.SubElement(parent, "path", {
+        "d": d, "fill": PALETTE["slab_fill"],
+        "stroke": PALETTE["slab_stroke"], "stroke-width": "0.75",
+        "stroke-dasharray": dash, "class": "slab",
     })
 
 
@@ -527,6 +581,8 @@ def level_to_svg(
     margin: float = MARGIN_PX,
     title: str | None = None,
     palette: dict | None = None,
+    visible_layers: set[str] | None = None,
+    material_library=None,
 ) -> str:
     """
     Render a Level as an SVG string.
@@ -537,6 +593,13 @@ def level_to_svg(
         margin: padding around the drawing in pixels
         title: optional title drawn at the top
         palette: optional dict to override default colors
+        visible_layers: when provided, only elements whose ``layer`` name is
+            in this set are rendered.  Pass ``None`` (default) to render all
+            layers regardless of visibility.
+        material_library: optional :class:`~archit_app.elements.material.MaterialLibrary`
+            instance.  When provided, elements with a ``material`` name that
+            exists in the library will use the material's ``color_hex`` as their
+            fill colour instead of the default palette colour.
 
     Returns:
         SVG XML as a string (UTF-8)
@@ -544,6 +607,22 @@ def level_to_svg(
     global PALETTE
     if palette:
         PALETTE = {**PALETTE, **palette}
+
+    def _visible(element) -> bool:
+        """Return True if the element's layer should be rendered."""
+        if visible_layers is None:
+            return True
+        return getattr(element, "layer", "") in visible_layers
+
+    def _material_color(element, default: str) -> str:
+        """Return the material's hex colour if available, else *default*."""
+        if material_library is None:
+            return default
+        mat_name = getattr(element, "material", None)
+        if mat_name is None:
+            return default
+        mat = material_library.get(mat_name)
+        return mat.color_hex if mat is not None else default
 
     bbox = _compute_bbox(level)
     if bbox is None:
@@ -574,59 +653,86 @@ def level_to_svg(
     # Rooms layer (bottom-most)
     room_group = ET.SubElement(svg, "g", {"id": "rooms"})
     for room in level.rooms:
-        _render_room(room, vt, room_group)
+        if _visible(room):
+            _render_room(room, vt, room_group)
 
-    # Ramps (above rooms, below walls)
-    if level.ramps:
+    # Slabs (above rooms, below ramps)
+    visible_slabs = [s for s in level.slabs if _visible(s)]
+    if visible_slabs:
+        slab_group = ET.SubElement(svg, "g", {"id": "slabs"})
+        for slab in visible_slabs:
+            _render_slab(slab, vt, slab_group)
+
+    # Ramps (above slabs, below staircases)
+    visible_ramps = [r for r in level.ramps if _visible(r)]
+    if visible_ramps:
         ramp_group = ET.SubElement(svg, "g", {"id": "ramps"})
-        for ramp in level.ramps:
+        for ramp in visible_ramps:
             _render_ramp(ramp, vt, ramp_group)
+
+    # Staircases (above ramps, below walls)
+    visible_stairs = [s for s in level.staircases if _visible(s)]
+    if visible_stairs:
+        stair_group = ET.SubElement(svg, "g", {"id": "staircases"})
+        for stair in visible_stairs:
+            _render_staircase(stair, vt, stair_group)
 
     # Walls layer
     wall_group = ET.SubElement(svg, "g", {"id": "walls"})
     for wall in level.walls:
-        _render_wall(wall, vt, wall_group)
-        for opening in wall.openings:
-            _render_opening(opening, vt, wall_group)
+        if _visible(wall):
+            _render_wall(wall, vt, wall_group,
+                         fill_override=_material_color(wall, PALETTE["wall_fill"]) or None)
+            for opening in wall.openings:
+                if _visible(opening):
+                    _render_opening(opening, vt, wall_group)
 
     # Level-standalone openings
     opening_group = ET.SubElement(svg, "g", {"id": "openings"})
     for opening in level.openings:
-        _render_opening(opening, vt, opening_group)
+        if _visible(opening):
+            _render_opening(opening, vt, opening_group)
 
     # Beams (above walls)
-    if level.beams:
+    visible_beams = [b for b in level.beams if _visible(b)]
+    if visible_beams:
         beam_group = ET.SubElement(svg, "g", {"id": "beams"})
-        for beam in level.beams:
+        for beam in visible_beams:
             _render_beam(beam, vt, beam_group)
 
     # Columns layer
     col_group = ET.SubElement(svg, "g", {"id": "columns"})
     for col in level.columns:
-        _render_column(col, vt, col_group)
+        if _visible(col):
+            _render_column(col, vt, col_group,
+                           fill_override=_material_color(col, PALETTE["column_fill"]) or None)
 
     # Furniture layer
-    if level.furniture:
+    visible_furn = [f for f in level.furniture if _visible(f)]
+    if visible_furn:
         furn_group = ET.SubElement(svg, "g", {"id": "furniture"})
-        for furn in level.furniture:
+        for furn in visible_furn:
             _render_furniture(furn, vt, furn_group)
 
     # Dimensions layer
-    if level.dimensions:
+    visible_dims = [d for d in level.dimensions if _visible(d)]
+    if visible_dims:
         dim_group = ET.SubElement(svg, "g", {"id": "dimensions"})
-        for dim in level.dimensions:
+        for dim in visible_dims:
             _render_dimension_line(dim, vt, dim_group)
 
     # Section marks layer
-    if level.section_marks:
+    visible_marks = [m for m in level.section_marks if _visible(m)]
+    if visible_marks:
         sec_group = ET.SubElement(svg, "g", {"id": "section-marks"})
-        for mark in level.section_marks:
+        for mark in visible_marks:
             _render_section_mark(mark, vt, sec_group)
 
     # Text annotations (topmost)
-    if level.text_annotations:
+    visible_anns = [a for a in level.text_annotations if _visible(a)]
+    if visible_anns:
         ann_group = ET.SubElement(svg, "g", {"id": "annotations"})
-        for ann in level.text_annotations:
+        for ann in visible_anns:
             _render_text_annotation(ann, vt, ann_group)
 
     # Scale bar (bottom-left)
@@ -689,10 +795,32 @@ def building_to_svg_pages(
     Returns:
         list of (level_index, svg_string) tuples
     """
+    # Build the set of visible layer names from the building's layer registry.
+    # Unknown layer names (elements whose layer field isn't in the registry)
+    # are always visible.
+    if building.layers:
+        visible_layers: set[str] | None = {
+            name for name, lyr in building.layers.items() if lyr.visible
+        }
+        # Elements on unregistered layers should still appear — add a sentinel
+        # that won't match any real layer name to keep _visible() returning True
+        # for those. We do this by passing None when ALL layers are visible.
+        if len(visible_layers) == len(building.layers):
+            # All registered layers visible → treat as no filter
+            visible_layers = None
+    else:
+        visible_layers = None
+
     pages = []
     for level in building.levels:
         title = level.name or f"Level {level.index} — {building.metadata.name}"
-        svg_str = level_to_svg(level, pixels_per_meter=pixels_per_meter, margin=margin, title=title)
+        svg_str = level_to_svg(
+            level,
+            pixels_per_meter=pixels_per_meter,
+            margin=margin,
+            title=title,
+            visible_layers=visible_layers,
+        )
         pages.append((level.index, svg_str))
     return pages
 

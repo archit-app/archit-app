@@ -43,6 +43,10 @@ from archit_app.elements.column import Column
 from archit_app.elements.opening import Opening, OpeningKind
 from archit_app.elements.room import Room
 from archit_app.elements.slab import Slab, SlabType
+from archit_app.elements.beam import Beam
+from archit_app.elements.elevator import Elevator
+from archit_app.elements.furniture import Furniture
+from archit_app.elements.ramp import Ramp
 from archit_app.elements.staircase import Staircase
 from archit_app.elements.wall import Wall
 from archit_app.geometry.polygon import Polygon2D
@@ -554,6 +558,99 @@ def _export_staircase(f, stair: Staircase, context, owner_history,
     )
 
 
+def _export_ramp(f, ramp: Ramp, context, owner_history,
+                 storey_placement, elevation: float):
+    """Export a Ramp as IfcRamp with extruded footprint polygon."""
+    import math as _math
+    profile = _polygon_to_2d_profile(f, ramp.boundary, "RampProfile")
+    rise = ramp.total_rise
+    solid = _extruded_solid(f, profile, depth=max(rise, 0.05), z_offset=0.0)
+    shape = _shape_representation(f, context, solid)
+    placement = _local_placement(f, 0.0, 0.0, elevation, relative_to=storey_placement)
+
+    return f.create_entity(
+        "IfcRamp",
+        GlobalId=_guid_from_uuid(ramp.id),
+        OwnerHistory=owner_history,
+        Name=f"Ramp [{ramp.ramp_type.value}]",
+        Description=None,
+        ObjectType=ramp.ramp_type.value,
+        ObjectPlacement=placement,
+        Representation=shape,
+        Tag=str(ramp.id),
+        PredefinedType="STRAIGHT_RUN_RAMP",
+    )
+
+
+def _export_beam(f, beam: Beam, context, owner_history,
+                 storey_placement):
+    """Export a Beam as IfcBeam with extruded footprint polygon."""
+    profile = _polygon_to_2d_profile(f, beam.geometry, "BeamProfile")
+    solid = _extruded_solid(f, profile, depth=beam.depth, z_offset=0.0)
+    shape = _shape_representation(f, context, solid)
+    z = beam.elevation - beam.depth
+    placement = _local_placement(f, 0.0, 0.0, z, relative_to=storey_placement)
+
+    return f.create_entity(
+        "IfcBeam",
+        GlobalId=_guid_from_uuid(beam.id),
+        OwnerHistory=owner_history,
+        Name=f"Beam [{beam.section.value}]",
+        Description=None,
+        ObjectType=beam.section.value,
+        ObjectPlacement=placement,
+        Representation=shape,
+        Tag=str(beam.id),
+        PredefinedType="BEAM",
+    )
+
+
+def _export_furniture(f, furn: Furniture, context, owner_history,
+                      storey_placement, elevation: float):
+    """Export a Furniture item as IfcFurnishingElement."""
+    profile = _polygon_to_2d_profile(f, furn.footprint, "FurnProfile")
+    height = max(furn.height, 0.05)
+    solid = _extruded_solid(f, profile, depth=height, z_offset=0.0)
+    shape = _shape_representation(f, context, solid)
+    placement = _local_placement(f, 0.0, 0.0, elevation, relative_to=storey_placement)
+
+    label = furn.label or furn.category.value.replace("_", " ").title()
+    return f.create_entity(
+        "IfcFurnishingElement",
+        GlobalId=_guid_from_uuid(furn.id),
+        OwnerHistory=owner_history,
+        Name=label,
+        Description=furn.category.value,
+        ObjectType=furn.category.value,
+        ObjectPlacement=placement,
+        Representation=shape,
+        Tag=str(furn.id),
+    )
+
+
+def _export_elevator(f, elevator: Elevator, context, owner_history,
+                     storey_placement, elevation: float):
+    """Export an Elevator shaft as IfcTransportElement."""
+    profile = _polygon_to_2d_profile(f, elevator.shaft, "ElevatorProfile")
+    height = max(elevator.pit_depth + 2.5, 2.5)  # approximate cab height
+    solid = _extruded_solid(f, profile, depth=height, z_offset=0.0)
+    shape = _shape_representation(f, context, solid)
+    placement = _local_placement(f, 0.0, 0.0, elevation, relative_to=storey_placement)
+
+    return f.create_entity(
+        "IfcTransportElement",
+        GlobalId=_guid_from_uuid(elevator.id),
+        OwnerHistory=owner_history,
+        Name="Elevator",
+        Description=None,
+        ObjectType="ELEVATOR",
+        ObjectPlacement=placement,
+        Representation=shape,
+        Tag=str(elevator.id),
+        PredefinedType="ELEVATOR",
+    )
+
+
 def _export_level(f, level: Level, context, owner_history,
                   storey_placement) -> list:
     """Export all elements in a level; return list of IFC product entities."""
@@ -594,6 +691,21 @@ def _export_level(f, level: Level, context, owner_history,
     for stair in level.staircases:
         ifc_elements.append(
             _export_staircase(f, stair, context, owner_history, storey_placement, elev)
+        )
+
+    for ramp in level.ramps:
+        ifc_elements.append(
+            _export_ramp(f, ramp, context, owner_history, storey_placement, elev)
+        )
+
+    for beam in level.beams:
+        ifc_elements.append(
+            _export_beam(f, beam, context, owner_history, storey_placement)
+        )
+
+    for furn in level.furniture:
+        ifc_elements.append(
+            _export_furniture(f, furn, context, owner_history, storey_placement, elev)
         )
 
     return ifc_elements
@@ -646,6 +758,23 @@ def building_to_ifc(building: Building):
         storeys.append(storey)
 
     _aggregate(f, owner_history, bldg_entity, storeys)
+
+    # --- Elevators (building-level vertical elements) ----------------------
+    if building.elevators:
+        # Place at ground (lowest storey) elevation
+        base_elev = building.levels[0].elevation if building.levels else 0.0
+        base_placement = (
+            storeys[0].ObjectPlacement if storeys
+            else _local_placement(f, 0.0, 0.0, base_elev)
+        )
+        elev_elements = []
+        for elevator in building.elevators:
+            elev_elements.append(
+                _export_elevator(f, elevator, context, owner_history,
+                                 base_placement, base_elev)
+            )
+        if elev_elements and storeys:
+            _contain_in_storey(f, owner_history, storeys[0], elev_elements)
 
     return f
 

@@ -25,9 +25,11 @@ from typing import Any
 from archit_app.building.building import Building
 from archit_app.building.level import Level
 from archit_app.elements.column import Column
-from archit_app.elements.opening import Opening
+from archit_app.elements.opening import Opening, OpeningKind
 from archit_app.elements.room import Room
-from archit_app.elements.wall import Wall
+from archit_app.elements.wall import Wall, WallType
+from archit_app.geometry.crs import WORLD
+from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
 
 
@@ -252,6 +254,177 @@ def building_to_geojson(
         },
         "features": all_features,
     }
+
+
+# ---------------------------------------------------------------------------
+# GeoJSON import
+# ---------------------------------------------------------------------------
+
+
+def _coords_to_polygon(coords: list[list[list[float]]]) -> Polygon2D:
+    """Convert GeoJSON Polygon coordinates (exterior + optional holes) to Polygon2D."""
+    if not coords:
+        raise ValueError("GeoJSON Polygon has no coordinate rings.")
+    exterior_ring = coords[0]
+    # GeoJSON rings are closed (first == last), so drop the last point.
+    exterior_pts = tuple(
+        Point2D(x=pt[0], y=pt[1], crs=WORLD)
+        for pt in exterior_ring[:-1]
+    )
+    holes = []
+    for ring in coords[1:]:
+        hole_pts = tuple(
+            Point2D(x=pt[0], y=pt[1], crs=WORLD)
+            for pt in ring[:-1]
+        )
+        if hole_pts:
+            holes.append(Polygon2D(exterior=hole_pts, crs=WORLD))
+    return Polygon2D(exterior=exterior_pts, holes=tuple(holes), crs=WORLD)
+
+
+def _feature_to_room(feature: dict[str, Any]) -> Room:
+    props = feature.get("properties", {})
+    geom = feature.get("geometry", {})
+    poly = _coords_to_polygon(geom.get("coordinates", [[]]))
+    return Room(
+        boundary=poly,
+        name=props.get("name", ""),
+        program=props.get("program", ""),
+        layer=props.get("layer", ""),
+    )
+
+
+def _feature_to_wall(feature: dict[str, Any]) -> Wall | None:
+    props = feature.get("properties", {})
+    geom = feature.get("geometry", {})
+    if geom.get("type") != "Polygon":
+        return None
+    poly = _coords_to_polygon(geom.get("coordinates", [[]]))
+    try:
+        wall_type = WallType(props.get("wall_type", "interior"))
+    except ValueError:
+        wall_type = WallType.INTERIOR
+    return Wall(
+        geometry=poly,
+        thickness=float(props.get("thickness_m", 0.2)),
+        height=float(props.get("height_m", 3.0)),
+        wall_type=wall_type,
+        material=props.get("material"),
+        layer=props.get("layer", ""),
+    )
+
+
+def _feature_to_column(feature: dict[str, Any]) -> Column | None:
+    props = feature.get("properties", {})
+    geom = feature.get("geometry", {})
+    if geom.get("type") != "Polygon":
+        return None
+    from archit_app.elements.column import ColumnShape
+    poly = _coords_to_polygon(geom.get("coordinates", [[]]))
+    try:
+        shape = ColumnShape(props.get("shape", "rectangular"))
+    except ValueError:
+        shape = ColumnShape.RECTANGULAR
+    return Column(
+        geometry=poly,
+        height=float(props.get("height_m", 3.0)),
+        shape=shape,
+        material=props.get("material"),
+        layer=props.get("layer", ""),
+    )
+
+
+def _feature_to_opening(feature: dict[str, Any]) -> Opening | None:
+    props = feature.get("properties", {})
+    geom = feature.get("geometry", {})
+    if geom.get("type") != "Polygon":
+        return None
+    poly = _coords_to_polygon(geom.get("coordinates", [[]]))
+    try:
+        kind = OpeningKind(props.get("kind", "door"))
+    except ValueError:
+        kind = OpeningKind.DOOR
+    return Opening(
+        geometry=poly,
+        kind=kind,
+        width=float(props.get("width_m", 0.9)),
+        height=float(props.get("height_m", 2.1)),
+        sill_height=float(props.get("sill_height_m", 0.0)),
+        layer=props.get("layer", ""),
+    )
+
+
+def level_from_geojson(
+    data: dict[str, Any],
+    *,
+    index: int = 0,
+    elevation: float = 0.0,
+    floor_height: float = 3.0,
+    name: str = "",
+) -> Level:
+    """Reconstruct a :class:`Level` from a GeoJSON FeatureCollection.
+
+    Reads the FeatureCollection produced by :func:`level_to_geojson` and
+    converts features back to their corresponding element types via the
+    ``properties.element_type`` field.
+
+    Parameters
+    ----------
+    data:
+        Parsed GeoJSON dict (a FeatureCollection).
+    index:
+        Level index to assign to the returned Level.
+    elevation:
+        Elevation in meters to assign.
+    floor_height:
+        Floor-to-ceiling height in meters.
+    name:
+        Optional name for the level.
+
+    Returns
+    -------
+    Level
+        A Level populated with rooms, walls, columns, and openings.
+    """
+    if not isinstance(data, dict):
+        raise TypeError(f"Expected a dict, got {type(data).__name__}")
+    if data.get("type") != "FeatureCollection":
+        raise ValueError("GeoJSON data must be a FeatureCollection.")
+
+    level = Level(index=index, elevation=elevation, floor_height=floor_height, name=name)
+
+    for feature in data.get("features", []):
+        props = feature.get("properties") or {}
+        element_type = props.get("element_type", "")
+
+        try:
+            if element_type == "room":
+                level = level.add_room(_feature_to_room(feature))
+            elif element_type == "wall":
+                wall = _feature_to_wall(feature)
+                if wall is not None:
+                    level = level.add_wall(wall)
+            elif element_type == "column":
+                col = _feature_to_column(feature)
+                if col is not None:
+                    level = level.add_column(col)
+            elif element_type == "opening":
+                op = _feature_to_opening(feature)
+                if op is not None:
+                    level = level.add_opening(op)
+        except Exception:
+            # Skip malformed features without crashing
+            pass
+
+    return level
+
+
+def level_from_geojson_str(s: str, **kwargs) -> Level:
+    """Parse a GeoJSON string and return a Level.
+
+    See :func:`level_from_geojson` for parameter documentation.
+    """
+    return level_from_geojson(json.loads(s), **kwargs)
 
 
 def level_to_geojson_str(level: Level, indent: int = 2, **kwargs) -> str:

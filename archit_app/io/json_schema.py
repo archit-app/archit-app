@@ -21,11 +21,19 @@ from typing import Any
 from uuid import UUID
 
 from archit_app.building.building import Building, BuildingMetadata
+from archit_app.building.grid import GridAxis, StructuralGrid
 from archit_app.building.land import Land
 from archit_app.building.level import Level
+from archit_app.elements.annotation import DimensionLine, SectionMark, TextAnnotation
+from archit_app.elements.beam import Beam, BeamSection
 from archit_app.elements.column import Column, ColumnShape
+from archit_app.elements.elevator import Elevator, ElevatorDoor
+from archit_app.elements.furniture import Furniture, FurnitureCategory
 from archit_app.elements.opening import Frame, Opening, OpeningKind, SwingGeometry
+from archit_app.elements.ramp import Ramp, RampType
 from archit_app.elements.room import Room
+from archit_app.elements.slab import Slab, SlabType
+from archit_app.elements.staircase import Staircase, StaircaseType
 from archit_app.elements.wall import Wall, WallType
 from archit_app.geometry.crs import (
     IMAGE,
@@ -41,8 +49,8 @@ from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
 from archit_app.geometry.transform import Transform2D
 
-FORMAT_VERSION = "0.2.0"
-PREVIOUS_VERSIONS = ("0.1.0",)   # versions we can migrate from
+FORMAT_VERSION = "0.3.0"
+PREVIOUS_VERSIONS = ("0.1.0", "0.2.0")   # versions we can migrate from
 
 # Known CRS singletons — serialized by name, looked up on deserialize
 _CRS_SINGLETONS: dict[str, CoordinateSystem] = {
@@ -318,6 +326,256 @@ def _des_column(data: dict[str, Any]) -> Column:
     )
 
 
+def _ser_staircase(s: Staircase) -> dict[str, Any]:
+    return {
+        "type": "Staircase", **_base_fields(s),
+        "boundary": _ser_polygon(s.boundary),
+        "rise_count": s.rise_count, "rise_height": s.rise_height,
+        "run_depth": s.run_depth, "width": s.width,
+        "stair_type": s.stair_type.value, "direction": s.direction,
+        "bottom_level_index": s.bottom_level_index, "top_level_index": s.top_level_index,
+        "has_landing": s.has_landing, "nosing": s.nosing, "material": s.material,
+    }
+
+
+def _des_staircase(data: dict[str, Any]) -> Staircase:
+    return Staircase(
+        boundary=_des_polygon(data["boundary"]),
+        rise_count=data["rise_count"], rise_height=data["rise_height"],
+        run_depth=data["run_depth"], width=data["width"],
+        stair_type=StaircaseType(data.get("stair_type", "straight")),
+        direction=data.get("direction", 0.0),
+        bottom_level_index=data.get("bottom_level_index", 0),
+        top_level_index=data.get("top_level_index", 1),
+        has_landing=data.get("has_landing", False), nosing=data.get("nosing", 0.02),
+        material=data.get("material"), **_des_base_kwargs(data),
+    )
+
+
+def _ser_slab(s: Slab) -> dict[str, Any]:
+    return {
+        "type": "Slab", **_base_fields(s),
+        "boundary": _ser_polygon(s.boundary),
+        "holes": [_ser_polygon(h) for h in s.holes],
+        "thickness": s.thickness, "elevation": s.elevation,
+        "slab_type": s.slab_type.value, "level_index": s.level_index,
+        "material": s.material,
+    }
+
+
+def _des_slab(data: dict[str, Any]) -> Slab:
+    return Slab(
+        boundary=_des_polygon(data["boundary"]),
+        holes=tuple(_des_polygon(h) for h in data.get("holes", [])),
+        thickness=data["thickness"], elevation=data["elevation"],
+        slab_type=SlabType(data.get("slab_type", "floor")),
+        level_index=data.get("level_index", 0),
+        material=data.get("material"), **_des_base_kwargs(data),
+    )
+
+
+def _ser_beam(b: Beam) -> dict[str, Any]:
+    return {
+        "type": "Beam", **_base_fields(b),
+        "geometry": _ser_polygon(b.geometry),
+        "width": b.width, "depth": b.depth, "elevation": b.elevation,
+        "section": b.section.value, "level_index": b.level_index,
+        "material": b.material,
+    }
+
+
+def _des_beam(data: dict[str, Any]) -> Beam:
+    return Beam(
+        geometry=_des_polygon(data["geometry"]),
+        width=data["width"], depth=data["depth"], elevation=data["elevation"],
+        section=BeamSection(data.get("section", "rectangular")),
+        level_index=data.get("level_index", 0),
+        material=data.get("material"), **_des_base_kwargs(data),
+    )
+
+
+def _ser_ramp(r: Ramp) -> dict[str, Any]:
+    return {
+        "type": "Ramp", **_base_fields(r),
+        "boundary": _ser_polygon(r.boundary),
+        "width": r.width, "slope_angle": r.slope_angle,
+        "direction": r.direction,
+        "bottom_level_index": r.bottom_level_index,
+        "top_level_index": r.top_level_index,
+        "ramp_type": r.ramp_type.value,
+        "has_landing": r.has_landing, "material": r.material,
+    }
+
+
+def _des_ramp(data: dict[str, Any]) -> Ramp:
+    return Ramp(
+        boundary=_des_polygon(data["boundary"]),
+        width=data["width"], slope_angle=data["slope_angle"],
+        direction=data.get("direction", 0.0),
+        bottom_level_index=data.get("bottom_level_index", 0),
+        top_level_index=data.get("top_level_index", 1),
+        ramp_type=RampType(data.get("ramp_type", "straight")),
+        has_landing=data.get("has_landing", False),
+        material=data.get("material"), **_des_base_kwargs(data),
+    )
+
+
+def _ser_furniture(f: Furniture) -> dict[str, Any]:
+    return {
+        "type": "Furniture", **_base_fields(f),
+        "footprint": _ser_polygon(f.footprint),
+        "label": f.label, "category": f.category.value,
+        "width": f.width, "depth": f.depth, "height": f.height,
+    }
+
+
+def _des_furniture(data: dict[str, Any]) -> Furniture:
+    return Furniture(
+        footprint=_des_polygon(data["footprint"]),
+        label=data.get("label", ""),
+        category=FurnitureCategory(data.get("category", "custom")),
+        width=data.get("width", 0.0), depth=data.get("depth", 0.0),
+        height=data.get("height", 0.0), **_des_base_kwargs(data),
+    )
+
+
+def _ser_text_annotation(a: TextAnnotation) -> dict[str, Any]:
+    return {
+        "type": "TextAnnotation", **_base_fields(a),
+        "position": _ser_pt(a.position),
+        "text": a.text, "rotation": a.rotation,
+        "size": a.size, "anchor": a.anchor,
+    }
+
+
+def _des_text_annotation(data: dict[str, Any]) -> TextAnnotation:
+    crs = _des_crs(data.get("crs", "world"))
+    return TextAnnotation(
+        position=_des_pt(data["position"], crs),
+        text=data["text"], rotation=data.get("rotation", 0.0),
+        size=data.get("size", 0.25), anchor=data.get("anchor", "center"),
+        **_des_base_kwargs(data),
+    )
+
+
+def _ser_dimension(d: DimensionLine) -> dict[str, Any]:
+    return {
+        "type": "DimensionLine", **_base_fields(d),
+        "start": _ser_pt(d.start), "end": _ser_pt(d.end),
+        "offset": d.offset, "label_override": d.label_override,
+        "decimal_places": d.decimal_places, "unit_suffix": d.unit_suffix,
+    }
+
+
+def _des_dimension(data: dict[str, Any]) -> DimensionLine:
+    crs = _des_crs(data.get("crs", "world"))
+    return DimensionLine(
+        start=_des_pt(data["start"], crs), end=_des_pt(data["end"], crs),
+        offset=data.get("offset", 0.5),
+        label_override=data.get("label_override", ""),
+        decimal_places=data.get("decimal_places", 2),
+        unit_suffix=data.get("unit_suffix", "m"),
+        **_des_base_kwargs(data),
+    )
+
+
+def _ser_section_mark(m: SectionMark) -> dict[str, Any]:
+    return {
+        "type": "SectionMark", **_base_fields(m),
+        "start": _ser_pt(m.start), "end": _ser_pt(m.end),
+        "tag": m.tag, "view_direction": m.view_direction,
+        "reference": m.reference,
+    }
+
+
+def _des_section_mark(data: dict[str, Any]) -> SectionMark:
+    crs = _des_crs(data.get("crs", "world"))
+    return SectionMark(
+        start=_des_pt(data["start"], crs), end=_des_pt(data["end"], crs),
+        tag=data.get("tag", "A"),
+        view_direction=data.get("view_direction", "left"),
+        reference=data.get("reference", ""),
+        **_des_base_kwargs(data),
+    )
+
+
+def _ser_elevator_door(d: ElevatorDoor) -> dict[str, Any]:
+    return {
+        "id": str(d.id),
+        "level_index": d.level_index,
+        "position": _ser_pt(d.position),
+        "crs": _ser_crs(d.position.crs),
+        "width": d.width, "direction": d.direction,
+    }
+
+
+def _des_elevator_door(data: dict[str, Any]) -> ElevatorDoor:
+    crs = _des_crs(data.get("crs", "world"))
+    return ElevatorDoor(
+        id=UUID(data["id"]),
+        level_index=data["level_index"],
+        position=_des_pt(data["position"], crs),
+        width=data.get("width", 0.9),
+        direction=data.get("direction", 0.0),
+    )
+
+
+def _ser_elevator(e: Elevator) -> dict[str, Any]:
+    return {
+        "type": "Elevator", **_base_fields(e),
+        "shaft": _ser_polygon(e.shaft),
+        "cab_width": e.cab_width, "cab_depth": e.cab_depth,
+        "bottom_level_index": e.bottom_level_index,
+        "top_level_index": e.top_level_index,
+        "doors": [_ser_elevator_door(d) for d in e.doors],
+        "capacity_kg": e.capacity_kg, "material": e.material,
+    }
+
+
+def _des_elevator(data: dict[str, Any]) -> Elevator:
+    return Elevator(
+        shaft=_des_polygon(data["shaft"]),
+        cab_width=data["cab_width"], cab_depth=data["cab_depth"],
+        bottom_level_index=data.get("bottom_level_index", 0),
+        top_level_index=data.get("top_level_index", 1),
+        doors=tuple(_des_elevator_door(d) for d in data.get("doors", [])),
+        capacity_kg=data.get("capacity_kg"), material=data.get("material"),
+        **_des_base_kwargs(data),
+    )
+
+
+def _ser_grid_axis(ax: GridAxis) -> dict[str, Any]:
+    return {
+        "name": ax.name,
+        "start": _ser_pt(ax.start),
+        "end": _ser_pt(ax.end),
+        "crs": _ser_crs(ax.start.crs),
+    }
+
+
+def _des_grid_axis(data: dict[str, Any]) -> GridAxis:
+    crs = _des_crs(data.get("crs", "world"))
+    return GridAxis(name=data["name"], start=_des_pt(data["start"], crs), end=_des_pt(data["end"], crs))
+
+
+def _ser_grid(grid: StructuralGrid | None) -> dict[str, Any] | None:
+    if grid is None:
+        return None
+    return {
+        "x_axes": [_ser_grid_axis(ax) for ax in grid.x_axes],
+        "y_axes": [_ser_grid_axis(ax) for ax in grid.y_axes],
+    }
+
+
+def _des_grid(data: dict[str, Any] | None) -> StructuralGrid | None:
+    if data is None:
+        return None
+    return StructuralGrid(
+        x_axes=tuple(_des_grid_axis(ax) for ax in data.get("x_axes", [])),
+        y_axes=tuple(_des_grid_axis(ax) for ax in data.get("y_axes", [])),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Building / Level serializers
 # ---------------------------------------------------------------------------
@@ -333,6 +591,14 @@ def _ser_level(lv: Level) -> dict[str, Any]:
         "rooms": [_ser_room(r) for r in lv.rooms],
         "openings": [_ser_opening(o) for o in lv.openings],
         "columns": [_ser_column(c) for c in lv.columns],
+        "staircases": [_ser_staircase(s) for s in lv.staircases],
+        "slabs": [_ser_slab(s) for s in lv.slabs],
+        "ramps": [_ser_ramp(r) for r in lv.ramps],
+        "beams": [_ser_beam(b) for b in lv.beams],
+        "furniture": [_ser_furniture(f) for f in lv.furniture],
+        "text_annotations": [_ser_text_annotation(a) for a in lv.text_annotations],
+        "dimensions": [_ser_dimension(d) for d in lv.dimensions],
+        "section_marks": [_ser_section_mark(m) for m in lv.section_marks],
     }
 
 
@@ -346,6 +612,14 @@ def _des_level(data: dict[str, Any]) -> Level:
         rooms=tuple(_des_room(r) for r in data.get("rooms", [])),
         openings=tuple(_des_opening(o) for o in data.get("openings", [])),
         columns=tuple(_des_column(c) for c in data.get("columns", [])),
+        staircases=tuple(_des_staircase(s) for s in data.get("staircases", [])),
+        slabs=tuple(_des_slab(s) for s in data.get("slabs", [])),
+        ramps=tuple(_des_ramp(r) for r in data.get("ramps", [])),
+        beams=tuple(_des_beam(b) for b in data.get("beams", [])),
+        furniture=tuple(_des_furniture(f) for f in data.get("furniture", [])),
+        text_annotations=tuple(_des_text_annotation(a) for a in data.get("text_annotations", [])),
+        dimensions=tuple(_des_dimension(d) for d in data.get("dimensions", [])),
+        section_marks=tuple(_des_section_mark(m) for m in data.get("section_marks", [])),
     )
 
 
@@ -450,6 +724,8 @@ def building_to_dict(building: Building) -> dict[str, Any]:
         },
         "levels": [_ser_level(lv) for lv in building.levels],
         "land": _ser_land(building.land),
+        "elevators": [_ser_elevator(e) for e in building.elevators],
+        "grid": _ser_grid(building.grid),
     }
 
 
@@ -462,13 +738,15 @@ def migrate_json(data: dict[str, Any]) -> dict[str, Any]:
     that future versions of the library can read files written today.
 
     Migration chain applied in order:
-      0.1.0 → 0.2.0
+      0.1.0 → 0.2.0 → 0.3.0
     """
     version = data.get("_archit_app_version", "0.1.0")
     if version == "0.1.0":
         data = _migrate_0_1_to_0_2(data)
         version = "0.2.0"
-    # Future migrations would be added here as elif branches.
+    if version == "0.2.0":
+        data = _migrate_0_2_to_0_3(data)
+        version = "0.3.0"
     return data
 
 
@@ -494,6 +772,15 @@ def _migrate_0_1_to_0_2(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _migrate_0_2_to_0_3(data: dict[str, Any]) -> dict[str, Any]:
+    """0.2.0 → 0.3.0: add elevators and grid keys at building level."""
+    data = dict(data)
+    data["_archit_app_version"] = "0.3.0"
+    data.setdefault("elevators", [])
+    data.setdefault("grid", None)
+    return data
+
+
 def building_from_dict(data: dict[str, Any]) -> Building:
     """
     Reconstruct a Building from a dict (as produced by building_to_dict).
@@ -515,7 +802,9 @@ def building_from_dict(data: dict[str, Any]) -> Building:
     # Accept both the new "land" key and the legacy "site" key
     land_data = data.get("land") or data.get("site")
     land = _des_land(land_data)
-    return Building(metadata=metadata, levels=levels, land=land)
+    elevators = tuple(_des_elevator(e) for e in data.get("elevators", []))
+    grid = _des_grid(data.get("grid"))
+    return Building(metadata=metadata, levels=levels, land=land, elevators=elevators, grid=grid)
 
 
 # ---------------------------------------------------------------------------

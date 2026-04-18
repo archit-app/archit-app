@@ -1,4 +1,4 @@
-"""Tests for GeoJSON export."""
+"""Tests for GeoJSON export and import."""
 
 import json
 
@@ -9,6 +9,8 @@ from archit_app.io.geojson import (
     level_to_geojson,
     building_to_geojson,
     level_to_geojson_str,
+    level_from_geojson,
+    level_from_geojson_str,
 )
 
 
@@ -111,3 +113,64 @@ def test_geojson_level_name(simple_square_room):
     lv = Level(index=0, elevation=0.0, floor_height=3.0, name="Ground").add_room(simple_square_room)
     fc = level_to_geojson(lv)
     assert fc["name"] == "Ground"
+
+
+# ---------------------------------------------------------------------------
+# GeoJSON import (level_from_geojson)
+# ---------------------------------------------------------------------------
+
+class TestGeoJSONImport:
+
+    def _roundtrip_level(self, level: Level) -> Level:
+        fc = level_to_geojson(level)
+        return level_from_geojson(fc)
+
+    def test_room_roundtrip_count(self, single_level_building):
+        lv = single_level_building.levels[0]
+        imported = self._roundtrip_level(lv)
+        assert len(imported.rooms) == len(lv.rooms)
+
+    def test_wall_roundtrip_count(self, single_level_building):
+        lv = single_level_building.levels[0]
+        imported = self._roundtrip_level(lv)
+        assert len(imported.walls) == len(lv.walls)
+
+    def test_room_name_preserved(self, single_level_building):
+        lv = single_level_building.levels[0]
+        imported = self._roundtrip_level(lv)
+        orig_names = {r.name for r in lv.rooms}
+        imp_names  = {r.name for r in imported.rooms}
+        assert orig_names == imp_names
+
+    def test_room_program_preserved(self, single_level_building):
+        lv = single_level_building.levels[0]
+        imported = self._roundtrip_level(lv)
+        orig_programs = {r.program for r in lv.rooms}
+        imp_programs  = {r.program for r in imported.rooms}
+        assert orig_programs == imp_programs
+
+    def test_column_roundtrip_count(self, single_level_building):
+        from archit_app.elements.column import Column
+        lv = single_level_building.levels[0]
+        col = Column.rectangular(x=3, y=2, width=0.3, depth=0.3, height=3.0)
+        lv = lv.add_column(col)
+        imported = self._roundtrip_level(lv)
+        assert len(imported.columns) == 1
+
+    def test_invalid_type_raises(self):
+        with pytest.raises((ValueError, TypeError)):
+            level_from_geojson({"type": "Feature"})
+
+    def test_from_json_string(self, single_level_building):
+        lv = single_level_building.levels[0]
+        s = level_to_geojson_str(lv)
+        imported = level_from_geojson_str(s)
+        assert len(imported.rooms) == len(lv.rooms)
+
+    def test_level_params_respected(self, single_level_building):
+        lv = single_level_building.levels[0]
+        fc = level_to_geojson(lv)
+        imported = level_from_geojson(fc, index=5, elevation=15.0, floor_height=4.0, name="Top")
+        assert imported.index == 5
+        assert imported.elevation == 15.0
+        assert imported.name == "Top"

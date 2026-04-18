@@ -37,6 +37,12 @@ pip install archit-app
   - Daylighting and solar orientation report per room
   - Isovist (visibility polygon) from any viewpoint
 - I/O: JSON (fully round-trippable), SVG, GeoJSON, **DXF round-trip** (read + write, optional), **IFC 4.x export** (optional), **PNG raster** (Pillow, optional), **PDF** (reportlab, multi-page, optional)
+- **Layer registry** — `Layer` model with color, visibility, and lock state; `Building.add_layer()` / `is_layer_visible()`; SVG/PDF/PNG renderers honour `visible_layers` filter; material-linked fill colours in SVG output
+- **Unit conversion** (`archit_app.units`) — `to_feet`, `from_feet`, `to_inches`, `from_inches`, `to_mm`, `from_mm`, `to_cm`, `from_cm`; `parse_dimension()` accepts `"12'-6\""`, `"3800mm"`, `"10ft"`, `"36\""`, or bare floats (meters)
+- **Element transform utilities** — `copy_element(el, dx, dy)`, `mirror_element(el, axis_x=…, axis_y=…)`, `array_element(el, count, dx, dy)` — all return new elements with fresh UUIDs
+- **Building validation** — `Building.validate()` → `ValidationReport` with `errors`, `warnings`, and `has_errors`; `Building.to_agent_context()` for AI-agent handoff; `Building.duplicate_level(src, new_index, new_elevation)`
+- **GeoJSON import** — `level_from_geojson()` / `level_from_geojson_str()` for full round-trip
+- **Level spatial index** — `Level.spatial_index()` returns a Shapely `STRtree` over all spatially-aware elements for fast spatial queries
 - Plugin registry for extending the library without touching core code
 - Immutable Pydantic models throughout — every "mutation" returns a new object
 
@@ -292,8 +298,9 @@ save_building_ifc(building, "my_house.ifc")
 ```
 
 Exported to IFC: walls (`IfcWall`), rooms (`IfcSpace`), doors/windows (`IfcDoor`/`IfcWindow`),
-columns (`IfcColumn`), slabs (`IfcSlab`), staircases (`IfcStair`) — all under the full
-`IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey` hierarchy.
+columns (`IfcColumn`), slabs (`IfcSlab`), staircases (`IfcStair`), ramps (`IfcRamp`),
+beams (`IfcBeam`), furniture (`IfcFurnishingElement`), elevators (`IfcTransportElement`) —
+all under the full `IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey` hierarchy.
 The IFC file can be opened in Revit, ArchiCAD, FreeCAD, and any other IFC 4-compliant viewer.
 
 ### Vertical circulation and structural elements
@@ -447,6 +454,133 @@ conv.register(WORLD, WGS84, some_georeference_transform)
 # Now IMAGE → WGS84 resolves as IMAGE → SCREEN → WORLD → WGS84
 ```
 
+### Layer visibility and material-linked rendering
+
+```python
+from archit_app import Building, Level, Wall, Room, Polygon2D, WORLD
+from archit_app.building.layer import Layer
+from archit_app.io.svg import level_to_svg
+
+# 1. Register layers on the building
+building = (
+    Building()
+    .add_layer(Layer(name="structure", color_hex="#808080", visible=True))
+    .add_layer(Layer(name="finishes",  color_hex="#C8A080", visible=False))
+    .add_level(ground)
+)
+
+# 2. SVG only renders elements whose layer is in the visible set
+svg = level_to_svg(ground, visible_layers={"structure"})   # "finishes" hidden
+
+# 3. Material-linked colours in SVG
+from archit_app.materials import default_library
+svg = level_to_svg(ground, material_library=default_library)
+# Walls use their material's colour; falls back to default palette
+```
+
+### Unit conversion
+
+```python
+from archit_app.units import (
+    to_feet, from_feet, to_inches, from_inches,
+    to_mm, from_mm, to_cm, from_cm,
+    parse_dimension,
+)
+
+# Metric ↔ Imperial
+print(to_feet(3.048))        # 10.0
+print(from_feet(10.0))       # 3.048
+print(to_inches(0.0254))     # 1.0
+print(to_mm(1.0))            # 1000.0
+
+# parse_dimension accepts mixed strings
+print(parse_dimension("12'-6\""))   # 3.81  (meters)
+print(parse_dimension("3800mm"))    # 3.8
+print(parse_dimension("10ft"))      # 3.048
+print(parse_dimension("36\""))      # 0.9144
+print(parse_dimension("3.5"))       # 3.5   (bare float → meters)
+```
+
+### Element transform utilities
+
+```python
+from archit_app.elements.transform_utils import copy_element, mirror_element, array_element
+from archit_app import Wall
+
+wall = Wall.straight(0, 0, 5, 0, thickness=0.2, height=3.0)
+
+# Translate — new element with fresh UUID
+wall2 = copy_element(wall, dx=0, dy=3.0)
+
+# Mirror about y = 2.5
+mirrored = mirror_element(wall, axis_y=2.5)
+
+# Linear array — returns [original, copy1, copy2, …]
+row = array_element(wall, count=4, dx=6.0, dy=0)
+# produces 4 walls spaced 6 m apart
+```
+
+### Building validation and agent context
+
+```python
+from archit_app import Building
+
+building = Building().add_level(ground)
+
+# Validate for common issues
+report = building.validate()
+if report.has_errors:
+    for issue in report.issues:
+        print(f"[{issue.severity.upper()}] {issue.message}")
+
+# Export a flat dict for AI-agent handoffs
+ctx = building.to_agent_context()
+# {
+#   "name": "My House",
+#   "level_count": 1,
+#   "total_gross_area_m2": 24.0,
+#   "levels": [...],
+#   ...
+# }
+
+# Duplicate a level (fresh UUIDs for all elements)
+building2 = building.duplicate_level(src_index=0, new_index=1, new_elevation=3.0)
+```
+
+### Spatial index
+
+```python
+# Requires: pip install shapely
+from shapely.geometry import box
+
+tree, elements = ground.spatial_index()
+
+# Fast rectangular query — returns matching elements
+hits = tree.query(box(0, 0, 3, 3))
+nearby = [elements[i] for i in hits]
+print([type(e).__name__ for e in nearby])   # ["Wall", "Room", ...]
+```
+
+### GeoJSON import
+
+```python
+from archit_app.io.geojson import (
+    level_to_geojson, level_from_geojson,
+    level_to_geojson_str, level_from_geojson_str,
+)
+
+# Export
+fc = level_to_geojson(ground)
+
+# Import back — full round-trip
+restored = level_from_geojson(fc, index=0, elevation=0.0, floor_height=3.0)
+assert len(restored.rooms) == len(ground.rooms)
+
+# From/to JSON string
+json_str  = level_to_geojson_str(ground)
+restored2 = level_from_geojson_str(json_str)
+```
+
 ### Spatial analysis
 
 ```python
@@ -534,12 +668,16 @@ archit_app/
 │                            Ramp, Elevator, Beam, Furniture, TextAnnotation,
 │                            DimensionLine, SectionMark, wall_join utilities
 ├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building,
-│                            BuildingMetadata, StructuralGrid
+│                            BuildingMetadata, StructuralGrid, Layer registry,
+│                            ValidationReport, duplicate_level, to_agent_context,
+│                            spatial_index
 ├── analysis/     Layer 6 — topology, circulation, area, compliance,
 │                            daylighting, visibility
-├── io/           Layer 5 — JSON, SVG, GeoJSON, DXF (read+write), IFC, PNG, PDF
+├── io/           Layer 5 — JSON, SVG, GeoJSON (read+write), DXF (read+write),
+│                            IFC 4.x, PNG, PDF
 ├── core/         Registry — plugin/extension system
-└── utils/        Unit helpers
+├── units.py      Unit conversion — parse_dimension, to/from feet/inches/mm/cm
+└── utils/        Shared helpers; element transform utilities
 ```
 
 All models are **immutable**. Every "mutation" method (e.g. `level.add_wall(w)`, `wall.add_opening(o)`) returns a new object.
@@ -578,7 +716,13 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Level / Building utilities | Done | `Level.replace_element()`, `Building.stats()` → `BuildingStats` |
 | Analysis completeness | Done | Accessibility checker, room-from-walls auto-detection |
 | JSON migration | Done | `migrate_json()` — upgrades 0.1.0 → 0.2.0 snapshots |
-| I/O completeness | Done | SVG/PDF/PNG now render furniture, beams, ramps, annotations, dimensions, section marks |
+| I/O completeness | Done | SVG/PDF/PNG render furniture, beams, ramps, annotations, dimensions, section marks, staircases, slabs, archways; material-linked SVG fill colours; DXF annotation/dimension/section-mark layers; IFC extended export (ramp, beam, furniture, elevator) |
+| GeoJSON round-trip | Done | `level_from_geojson()` / `level_from_geojson_str()` import |
+| Layer registry | Done | `Layer` model; building-level layer registry; renderer visibility filtering |
+| Unit conversion | Done | `parse_dimension()`, `to_feet/inches/mm/cm`, `from_feet/inches/mm/cm` |
+| Element transforms | Done | `copy_element`, `mirror_element`, `array_element` |
+| Building utilities | Done | `validate()` → `ValidationReport`, `to_agent_context()`, `duplicate_level()` |
+| Spatial index | Done | `Level.spatial_index()` → Shapely `STRtree` over all elements |
 
 ---
 

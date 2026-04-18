@@ -37,6 +37,7 @@ Usage::
 
 from __future__ import annotations
 
+import math
 import re
 from collections import defaultdict
 from typing import Sequence
@@ -165,6 +166,108 @@ def _export_level(level: Level, msp, prefix: str = "") -> None:
         _add_hatch(msp, coords, [], col_layer, _COLOR["columns"])
         _add_lwpolyline(msp, coords, col_layer, _COLOR["columns"])
 
+    # --- Staircases ---
+    stair_layer = _layer_name(prefix, "STAIRS")
+    for stair in level.staircases:
+        coords = _poly_coords(stair.boundary)
+        _add_hatch(msp, coords, [], stair_layer, 3)
+        _add_lwpolyline(msp, coords, stair_layer, 3)
+
+    # --- Slabs ---
+    slab_layer = _layer_name(prefix, "SLABS")
+    for slab in level.slabs:
+        coords = _poly_coords(slab.boundary)
+        _add_lwpolyline(msp, coords, slab_layer, 5)
+
+    # --- Beams ---
+    beam_layer = _layer_name(prefix, "BEAMS")
+    for beam in level.beams:
+        coords = _poly_coords(beam.geometry)
+        _add_lwpolyline(msp, coords, beam_layer, 6)
+
+    # --- Ramps ---
+    ramp_layer = _layer_name(prefix, "RAMPS")
+    for ramp in level.ramps:
+        coords = _poly_coords(ramp.boundary)
+        _add_lwpolyline(msp, coords, ramp_layer, 4)
+
+    # --- Furniture ---
+    furn_layer = _layer_name(prefix, "FURNITURE")
+    for furn in level.furniture:
+        coords = _poly_coords(furn.footprint)
+        _add_lwpolyline(msp, coords, furn_layer, 30)
+
+    # --- Text Annotations ---
+    ann_layer = _layer_name(prefix, "ANNOTATIONS")
+    for ann in level.text_annotations:
+        msp.add_text(
+            ann.text,
+            dxfattribs={
+                "layer": ann_layer,
+                "color": 8,
+                "insert": (ann.position.x, ann.position.y),
+                "height": ann.size * 0.5,
+                "rotation": math.degrees(ann.rotation),
+            },
+        )
+
+    # --- Dimension Lines ---
+    dim_layer = _layer_name(prefix, "DIMENSIONS")
+    for dim in level.dimensions:
+        # Extension lines
+        msp.add_line(
+            (dim.start.x, dim.start.y),
+            (dim.dimension_line_start.x, dim.dimension_line_start.y),
+            dxfattribs={"layer": dim_layer, "color": 9},
+        )
+        msp.add_line(
+            (dim.end.x, dim.end.y),
+            (dim.dimension_line_end.x, dim.dimension_line_end.y),
+            dxfattribs={"layer": dim_layer, "color": 9},
+        )
+        # Main dimension line
+        msp.add_line(
+            (dim.dimension_line_start.x, dim.dimension_line_start.y),
+            (dim.dimension_line_end.x, dim.dimension_line_end.y),
+            dxfattribs={"layer": dim_layer, "color": 9},
+        )
+        # Label
+        lp = dim.label_position
+        msp.add_text(
+            dim.label,
+            dxfattribs={
+                "layer": dim_layer,
+                "color": 9,
+                "insert": (lp.x, lp.y),
+                "height": 0.15,
+                "halign": 4,  # centre
+            },
+        )
+
+    # --- Section Marks ---
+    sect_layer = _layer_name(prefix, "SECTION_MARKS")
+    for mark in level.section_marks:
+        cl = mark.cut_line
+        msp.add_line(
+            (cl.start.x, cl.start.y),
+            (cl.end.x, cl.end.y),
+            dxfattribs={"layer": sect_layer, "color": 1},  # red
+        )
+        mp = mark.midpoint
+        msp.add_circle(
+            (mp.x, mp.y), 0.15,
+            dxfattribs={"layer": sect_layer, "color": 1},
+        )
+        msp.add_text(
+            mark.tag,
+            dxfattribs={
+                "layer": sect_layer,
+                "color": 1,
+                "insert": (mp.x, mp.y),
+                "height": 0.12,
+            },
+        )
+
 
 def level_to_dxf(level: Level):
     """
@@ -183,6 +286,14 @@ def level_to_dxf(level: Level):
         ("FP_WALLS", _COLOR["walls"]),
         ("FP_OPENINGS", _COLOR["openings"]),
         ("FP_COLUMNS", _COLOR["columns"]),
+        ("FP_STAIRS", 3),
+        ("FP_SLABS", 5),
+        ("FP_BEAMS", 6),
+        ("FP_RAMPS", 4),
+        ("FP_FURNITURE", 30),
+        ("FP_ANNOTATIONS", 8),
+        ("FP_DIMENSIONS", 9),
+        ("FP_SECTION_MARKS", 1),
     ]:
         doc.layers.add(layer_suffix, color=color)
 
@@ -214,6 +325,14 @@ def building_to_dxf(building: Building):
             ("FP_WALLS", _COLOR["walls"]),
             ("FP_OPENINGS", _COLOR["openings"]),
             ("FP_COLUMNS", _COLOR["columns"]),
+            ("FP_STAIRS", 3),
+            ("FP_SLABS", 5),
+            ("FP_BEAMS", 6),
+            ("FP_RAMPS", 4),
+            ("FP_FURNITURE", 30),
+            ("FP_ANNOTATIONS", 8),
+            ("FP_DIMENSIONS", 9),
+            ("FP_SECTION_MARKS", 1),
         ]:
             layer_name = f"{prefix}FP_{suffix.split('_', 1)[-1]}"
             if layer_name not in doc.layers:

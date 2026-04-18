@@ -83,6 +83,11 @@ _PAL = {
     "dim_line":         _c(136, 136, 136),
     "dim_text":         _c( 85,  85,  85),
     "section_line":     _c(204,  34,   0),
+    "stair_fill":       _c(232, 244, 232),
+    "stair_stroke":     _c( 46, 125,  50),
+    "slab_stroke":      _c(141, 110,  99),
+    "archway_fill":     _c(215, 204, 200),
+    "archway_stroke":   _c(109,  76,  65),
 }
 
 _MARGIN_PT = 36.0   # 0.5 inch margin
@@ -198,10 +203,25 @@ def _render_walls(c, level: Level, vt: _VT) -> None:
 
 def _render_single_opening(c, opening, vt: _VT) -> None:
     pts = [vt.pt(p) for p in opening.geometry.exterior]
-    if opening.kind == OpeningKind.WINDOW:
+    if opening.kind == OpeningKind.ARCHWAY:
+        _draw_polygon(c, pts, _PAL["archway_fill"], _PAL["archway_stroke"], 0.4)
+    elif opening.kind in (OpeningKind.WINDOW, OpeningKind.PASS_THROUGH):
         _draw_polygon(c, pts, _PAL["window_fill"], _PAL["window_stroke"], 0.4)
-    else:
+    else:  # DOOR
         _draw_polygon(c, pts, _PAL["door_fill"], _PAL["door_stroke"], 0.4)
+        # Door swing arc
+        if opening.swing is not None:
+            import math as _math
+            arc_pts = [vt.pt(p) for p in opening.swing.arc.to_polyline(24)]
+            if len(arc_pts) >= 2:
+                _set_stroke(c, _PAL["door_stroke"], 0.5)
+                c.setDash(2, 2)
+                path = c.beginPath()
+                path.moveTo(*arc_pts[0])
+                for x, y in arc_pts[1:]:
+                    path.lineTo(x, y)
+                c.drawPath(path, fill=0, stroke=1)
+                c.setDash()
 
 
 def _render_columns(c, level: Level, vt: _VT) -> None:
@@ -266,6 +286,54 @@ def _render_ramps(c, level: Level, vt: _VT) -> None:
         dy = _math.sin(ramp.direction) * arrow_len  # PDF Y-up — no flip
         _set_stroke(c, _PAL["ramp_arrow"], 1.0)
         c.line(cx - dx * 0.5, cy - dy * 0.5, cx + dx * 0.5, cy + dy * 0.5)
+
+
+def _render_staircases(c, level: Level, vt: _VT) -> None:
+    import math as _math
+    for stair in level.staircases:
+        pts = [vt.pt(p) for p in stair.boundary.exterior]
+        _draw_polygon(c, pts, _PAL["stair_fill"], _PAL["stair_stroke"], 0.75)
+
+        # Draw tread lines perpendicular to travel direction
+        bb = stair.boundary.bounding_box()
+        sx0, sy0 = vt(bb.min_corner.x, bb.min_corner.y)
+        sx1, sy1 = vt(bb.max_corner.x, bb.max_corner.y)
+        cos_d = _math.cos(stair.direction + _math.pi / 2)
+        sin_d = _math.sin(stair.direction + _math.pi / 2)
+        step_size = vt.s(stair.run_depth)
+        travel_len = max(abs(sx1 - sx0), abs(sy1 - sy0))
+        n_treads = max(1, int(travel_len / max(step_size, 1)))
+        cx = (sx0 + sx1) / 2
+        cy = (sy0 + sy1) / 2
+        half_w = travel_len * 0.4
+        _set_stroke(c, _PAL["stair_stroke"], 0.4)
+        for i in range(n_treads + 1):
+            t = -0.5 + i / max(n_treads, 1)
+            dx = _math.cos(stair.direction) * travel_len * t
+            dy = _math.sin(stair.direction) * travel_len * t  # PDF Y-up
+            lx1 = cx + dx - cos_d * half_w
+            ly1 = cy + dy - sin_d * half_w
+            lx2 = cx + dx + cos_d * half_w
+            ly2 = cy + dy + sin_d * half_w
+            c.line(lx1, ly1, lx2, ly2)
+
+
+def _render_slabs(c, level: Level, vt: _VT) -> None:
+    from archit_app.elements.slab import SlabType
+    for slab in level.slabs:
+        pts = [vt.pt(p) for p in slab.boundary.exterior]
+        _set_fill(c, (1, 1, 1))
+        _set_stroke(c, _PAL["slab_stroke"], 0.75)
+        dash = (4, 3) if slab.slab_type == SlabType.FLOOR else (2, 2)
+        c.setDash(*dash)
+        path = c.beginPath()
+        if pts:
+            path.moveTo(*pts[0])
+            for x, y in pts[1:]:
+                path.lineTo(x, y)
+            path.close()
+        c.drawPath(path, fill=0, stroke=1)
+        c.setDash()
 
 
 def _render_dimensions(c, level: Level, vt: _VT, font_size: float) -> None:
@@ -377,7 +445,9 @@ def _draw_level_page(
     font_size = max(5.0, vt.s(0.18))
 
     _render_rooms(c, level, vt, font_size)
+    _render_slabs(c, level, vt)
     _render_ramps(c, level, vt)
+    _render_staircases(c, level, vt)
     _render_walls(c, level, vt)
     _render_openings(c, level, vt)
     _render_beams(c, level, vt)

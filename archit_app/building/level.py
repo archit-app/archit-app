@@ -6,7 +6,7 @@ A Level contains all architectural elements on a single horizontal plane.
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict
 
@@ -69,6 +69,61 @@ class Level(BaseModel):
                 if el.id == element_id:
                     return el
         return None
+
+    def spatial_index(self):
+        """Build and return a Shapely STRtree over all spatially-aware elements.
+
+        Elements must have a ``bounding_box()`` method (walls, rooms, columns,
+        beams, slabs, ramps, staircases, furniture).  Annotation elements
+        without a bounding box are excluded.
+
+        Returns
+        -------
+        tuple[STRtree, list[Element]]
+            A ``(tree, elements)`` pair where ``elements[i]`` corresponds to
+            the *i*-th geometry in the STRtree.  Query the tree with Shapely
+            geometry objects and use the returned indices to look up elements.
+
+        Raises
+        ------
+        ImportError
+            If Shapely is not installed.
+
+        Example
+        -------
+        ::
+
+            from shapely.geometry import box
+            tree, elements = level.spatial_index()
+            hits = tree.query(box(0, 0, 3, 3))
+            nearby = [elements[i] for i in hits]
+        """
+        try:
+            from shapely.geometry import box as shp_box
+            from shapely.strtree import STRtree
+        except ImportError:
+            raise ImportError(
+                "Shapely is required for spatial_index. "
+                "Install it with: pip install shapely"
+            )
+
+        geometries = []
+        elements = []
+
+        for coll in (
+            self.walls, self.rooms, self.columns,
+            self.beams, self.slabs, self.ramps, self.staircases, self.furniture,
+        ):
+            for el in coll:
+                bb = el.bounding_box()
+                if bb is not None:
+                    geometries.append(
+                        shp_box(bb.min_corner.x, bb.min_corner.y,
+                                bb.max_corner.x, bb.max_corner.y)
+                    )
+                    elements.append(el)
+
+        return STRtree(geometries), elements
 
     @property
     def bounding_box(self) -> BoundingBox2D | None:
@@ -189,6 +244,52 @@ class Level(BaseModel):
                 ),
             }
         )
+
+    def duplicate(
+        self,
+        new_index: int,
+        new_elevation: float,
+        *,
+        name: str = "",
+        new_ids: bool = True,
+    ) -> "Level":
+        """Return a copy of this level at a different index and elevation.
+
+        Parameters
+        ----------
+        new_index:
+            Floor index for the duplicated level.
+        new_elevation:
+            Elevation (meters) of the duplicated level.
+        name:
+            Optional name for the new level.  Defaults to empty string.
+        new_ids:
+            When ``True`` (default) all elements in the copy receive fresh
+            UUIDs so the two levels remain independent.  Set to ``False``
+            only when you intentionally want shared identity.
+        """
+        def _fresh(element: Element) -> Element:
+            if new_ids:
+                return element.model_copy(update={"id": uuid4()})
+            return element
+
+        return self.model_copy(update={
+            "index": new_index,
+            "elevation": new_elevation,
+            "name": name,
+            "walls": tuple(_fresh(w) for w in self.walls),
+            "rooms": tuple(_fresh(r) for r in self.rooms),
+            "openings": tuple(_fresh(o) for o in self.openings),
+            "columns": tuple(_fresh(c) for c in self.columns),
+            "staircases": tuple(_fresh(s) for s in self.staircases),
+            "slabs": tuple(_fresh(s) for s in self.slabs),
+            "ramps": tuple(_fresh(r) for r in self.ramps),
+            "beams": tuple(_fresh(b) for b in self.beams),
+            "furniture": tuple(_fresh(f) for f in self.furniture),
+            "text_annotations": tuple(_fresh(a) for a in self.text_annotations),
+            "dimensions": tuple(_fresh(d) for d in self.dimensions),
+            "section_marks": tuple(_fresh(s) for s in self.section_marks),
+        })
 
     def __repr__(self) -> str:
         return (

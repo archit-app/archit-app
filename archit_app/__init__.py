@@ -48,7 +48,11 @@ from archit_app.elements.material import Material, MaterialCategory, MaterialLib
 from archit_app.building.land import Land, Setbacks, ZoningInfo
 from archit_app.building.site import SiteContext
 from archit_app.building.level import Level
-from archit_app.building.building import Building, BuildingMetadata, BuildingStats
+from archit_app.building.building import (
+    Building, BuildingMetadata, BuildingStats,
+    ValidationIssue, ValidationReport,
+)
+from archit_app.building.layer import Layer
 from archit_app.building.grid import StructuralGrid, GridAxis
 
 from archit_app.history import History, HistoryError
@@ -57,7 +61,17 @@ from archit_app.query import ElementQuery, query
 
 from archit_app.core.registry import register, get, list_registered, get_all
 
-__version__ = "0.2.0"
+from archit_app.units import (
+    to_feet, to_inches, to_mm, to_cm,
+    from_feet, from_inches, from_mm, from_cm,
+    parse_dimension,
+)
+
+from archit_app.elements.transform_utils import (
+    copy_element, mirror_element, array_element,
+)
+
+__version__ = "0.3.0"
 
 __all__ = [
     # Geometry
@@ -131,6 +145,9 @@ __all__ = [
     "Building",
     "BuildingMetadata",
     "BuildingStats",
+    "ValidationIssue",
+    "ValidationReport",
+    "Layer",
     "StructuralGrid",
     "GridAxis",
     # Application infrastructure
@@ -144,4 +161,18 @@ __all__ = [
     "get",
     "list_registered",
     "get_all",
+    # Unit conversion
+    "to_feet",
+    "to_inches",
+    "to_mm",
+    "to_cm",
+    "from_feet",
+    "from_inches",
+    "from_mm",
+    "from_cm",
+    "parse_dimension",
+    # Element transforms
+    "copy_element",
+    "mirror_element",
+    "array_element",
 ]

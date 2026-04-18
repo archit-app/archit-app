@@ -166,7 +166,8 @@ def test_bezier_curve_wall_roundtrip():
 def test_json_is_valid_json(single_level_building):
     s = building_to_json(single_level_building)
     parsed = json.loads(s)
-    assert parsed["_archit_app_version"] == "0.2.0"
+    from archit_app import __version__
+    assert parsed["_archit_app_version"] == __version__
     assert "levels" in parsed
     assert "metadata" in parsed
 

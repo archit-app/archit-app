@@ -343,3 +343,36 @@ class TestDxfRoundTrip:
         save_level_dxf(level, path)
         imported = building_from_dxf(path)
         assert len(imported.levels) == 1
+
+    def test_dxf_export_includes_annotation_layer(self, tmp_path):
+        from archit_app.elements.annotation import TextAnnotation
+        ann = TextAnnotation.note(x=1, y=1, text="Hello", crs=WORLD)
+        level = _make_level().add_text_annotation(ann)
+        path = str(tmp_path / "ann.dxf")
+        save_level_dxf(level, path)
+        import ezdxf
+        doc = ezdxf.readfile(path)
+        layer_names = {lyr.dxf.name for lyr in doc.layers}
+        assert "FP_ANNOTATIONS" in layer_names
+
+    def test_dxf_export_includes_dimension_layer(self, tmp_path):
+        from archit_app.elements.annotation import DimensionLine
+        dim = DimensionLine.horizontal(0, 6, y=5.5, crs=WORLD)
+        level = _make_level().add_dimension(dim)
+        path = str(tmp_path / "dim.dxf")
+        save_level_dxf(level, path)
+        import ezdxf
+        doc = ezdxf.readfile(path)
+        layer_names = {lyr.dxf.name for lyr in doc.layers}
+        assert "FP_DIMENSIONS" in layer_names
+
+    def test_dxf_export_includes_section_mark_layer(self, tmp_path):
+        from archit_app.elements.annotation import SectionMark
+        mark = SectionMark.horizontal(0, 6, y=2.5, tag="A", crs=WORLD)
+        level = _make_level().add_section_mark(mark)
+        path = str(tmp_path / "sect.dxf")
+        save_level_dxf(level, path)
+        import ezdxf
+        doc = ezdxf.readfile(path)
+        layer_names = {lyr.dxf.name for lyr in doc.layers}
+        assert "FP_SECTION_MARKS" in layer_names

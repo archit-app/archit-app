@@ -8,12 +8,14 @@ many Level objects indexed by floor number.
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from archit_app.building.grid import StructuralGrid
 from archit_app.building.land import Land
+from archit_app.building.layer import Layer
 from archit_app.building.level import Level
 from archit_app.elements.base import Element
 from archit_app.elements.elevator import Elevator
@@ -45,6 +47,7 @@ class Building(BaseModel):
     land: Land | None = None
     elevators: tuple[Elevator, ...] = ()
     grid: StructuralGrid | None = None
+    layers: dict[str, Layer] = Field(default_factory=dict)
 
     @property
     def site(self) -> Land | None:
@@ -119,6 +122,33 @@ class Building(BaseModel):
     def with_grid(self, grid: StructuralGrid) -> "Building":
         return self.model_copy(update={"grid": grid})
 
+    def add_layer(self, layer: Layer) -> "Building":
+        """Register a named layer (adds or replaces by name)."""
+        new_layers = {**self.layers, layer.name: layer}
+        return self.model_copy(update={"layers": new_layers})
+
+    def with_layer(self, layer: Layer) -> "Building":
+        """Alias for :meth:`add_layer`."""
+        return self.add_layer(layer)
+
+    def remove_layer(self, name: str) -> "Building":
+        """Remove a layer by name.  No-op if the layer does not exist."""
+        new_layers = {k: v for k, v in self.layers.items() if k != name}
+        return self.model_copy(update={"layers": new_layers})
+
+    def get_layer(self, name: str) -> Layer | None:
+        """Return the :class:`Layer` with the given name, or ``None``."""
+        return self.layers.get(name)
+
+    def is_layer_visible(self, name: str) -> bool:
+        """Return ``True`` if the layer is visible (or not registered at all).
+
+        Unknown layers are treated as visible so that elements without an
+        explicit layer entry are always rendered.
+        """
+        layer = self.layers.get(name)
+        return layer is None or layer.visible
+
     def stats(self) -> "BuildingStats":
         """Return a structured summary of element counts and areas across all levels."""
         area_by_program: dict[str, float] = {}
@@ -162,6 +192,141 @@ class Building(BaseModel):
             element_counts_by_level=counts_by_level,
         )
 
+    def duplicate_level(
+        self,
+        source_index: int,
+        new_index: int,
+        new_elevation: float,
+        *,
+        name: str = "",
+    ) -> "Building":
+        """Return a new Building with a copy of the level at *source_index* added at *new_index*.
+
+        Raises
+        ------
+        KeyError
+            If no level with *source_index* exists.
+        """
+        source = self.get_level(source_index)
+        if source is None:
+            raise KeyError(f"No level with index {source_index} in this building.")
+        new_level = source.duplicate(new_index, new_elevation, name=name)
+        return self.add_level(new_level)
+
+    def to_agent_context(self) -> dict:
+        """Return a compact, JSON-serialisable dict describing this building.
+
+        Designed for use as context in LLM/agent prompts.  Contains high-level
+        summary statistics and a per-level breakdown of element counts and areas.
+        """
+        stats = self.stats()
+        levels_summary = []
+        for lv in self.levels:
+            room_programs = [r.program for r in lv.rooms if r.program]
+            levels_summary.append({
+                "index": lv.index,
+                "name": lv.name or f"Level {lv.index}",
+                "elevation_m": lv.elevation,
+                "floor_height_m": lv.floor_height,
+                "rooms": [
+                    {
+                        "name": r.name,
+                        "program": r.program,
+                        "area_m2": round(r.area, 2),
+                    }
+                    for r in lv.rooms
+                ],
+                "element_counts": {
+                    "walls": len(lv.walls),
+                    "openings": len(lv.openings),
+                    "columns": len(lv.columns),
+                    "staircases": len(lv.staircases),
+                    "slabs": len(lv.slabs),
+                    "ramps": len(lv.ramps),
+                    "beams": len(lv.beams),
+                    "furniture": len(lv.furniture),
+                },
+            })
+
+        return {
+            "building_name": self.metadata.name,
+            "project_number": self.metadata.project_number,
+            "architect": self.metadata.architect,
+            "total_levels": stats.total_levels,
+            "total_rooms": stats.total_rooms,
+            "gross_floor_area_m2": stats.gross_floor_area_m2,
+            "net_floor_area_m2": stats.net_floor_area_m2,
+            "area_by_program_m2": stats.area_by_program,
+            "elevators": len(self.elevators),
+            "levels": levels_summary,
+        }
+
+    def validate(self) -> "ValidationReport":
+        """Check this building for common modelling errors.
+
+        Returns
+        -------
+        ValidationReport
+            Contains a list of :class:`ValidationIssue` items.  An empty
+            ``issues`` list means no problems were found.
+        """
+        issues: list[ValidationIssue] = []
+
+        # --- Level index uniqueness ---
+        seen_indices: dict[int, int] = {}
+        for lv in self.levels:
+            if lv.index in seen_indices:
+                issues.append(ValidationIssue(
+                    severity="error",
+                    element_id=None,
+                    message=f"Duplicate level index {lv.index}.",
+                ))
+            seen_indices[lv.index] = 1
+
+        for lv in self.levels:
+            # --- Rooms ---
+            for room in lv.rooms:
+                if room.area <= 0:
+                    issues.append(ValidationIssue(
+                        severity="error",
+                        element_id=room.id,
+                        message=f"Room '{room.name or room.id}' on level {lv.index} has zero or negative area ({room.area:.4f} m²).",
+                    ))
+
+            # --- Walls ---
+            for wall in lv.walls:
+                if hasattr(wall, "length") and wall.length <= 0:
+                    issues.append(ValidationIssue(
+                        severity="error",
+                        element_id=wall.id,
+                        message=f"Wall {wall.id} on level {lv.index} has zero or negative length.",
+                    ))
+
+            # --- Staircase level links ---
+            for stair in lv.staircases:
+                if stair.top_level_index is not None:
+                    if self.get_level(stair.top_level_index) is None:
+                        issues.append(ValidationIssue(
+                            severity="warning",
+                            element_id=stair.id,
+                            message=(
+                                f"Staircase {stair.id} on level {lv.index} links to "
+                                f"non-existent top_level_index {stair.top_level_index}."
+                            ),
+                        ))
+                if stair.bottom_level_index is not None:
+                    if self.get_level(stair.bottom_level_index) is None:
+                        issues.append(ValidationIssue(
+                            severity="warning",
+                            element_id=stair.id,
+                            message=(
+                                f"Staircase {stair.id} on level {lv.index} links to "
+                                f"non-existent bottom_level_index {stair.bottom_level_index}."
+                            ),
+                        ))
+
+        return ValidationReport(issues=issues)
+
     def __repr__(self) -> str:
         return (
             f"Building(name={self.metadata.name!r}, "
@@ -185,3 +350,34 @@ class BuildingStats(BaseModel):
     net_floor_area_m2: float
     area_by_program: dict[str, float]
     element_counts_by_level: list[dict]
+
+
+class ValidationIssue(BaseModel):
+    """A single validation finding from :meth:`Building.validate`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    severity: Literal["error", "warning", "info"]
+    element_id: UUID | None
+    message: str
+
+
+class ValidationReport(BaseModel):
+    """Result of :meth:`Building.validate`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    issues: list[ValidationIssue] = []
+
+    @property
+    def has_errors(self) -> bool:
+        return any(i.severity == "error" for i in self.issues)
+
+    @property
+    def has_warnings(self) -> bool:
+        return any(i.severity == "warning" for i in self.issues)
+
+    def __repr__(self) -> str:
+        errors = sum(1 for i in self.issues if i.severity == "error")
+        warnings = sum(1 for i in self.issues if i.severity == "warning")
+        return f"ValidationReport(errors={errors}, warnings={warnings})"

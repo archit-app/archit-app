@@ -142,3 +142,47 @@ class TestMaterialLibrary:
         lib = MaterialLibrary()
         assert "MaterialLibrary" in repr(lib)
         assert "12" in repr(lib)
+
+
+# ---------------------------------------------------------------------------
+# Material colour applied to SVG rendering
+# ---------------------------------------------------------------------------
+
+class TestMaterialInSVG:
+    """Verify that material_library parameter influences SVG fill colours."""
+
+    def test_wall_material_color_in_svg(self):
+        from archit_app import WORLD, Level, Room, Polygon2D, Wall, MaterialLibrary
+        from archit_app.io.svg import level_to_svg
+
+        lib = MaterialLibrary(include_builtins=False)
+        lib.register(Material(name="lego_blue", color_hex="#0055BF",
+                               category=MaterialCategory.OTHER))
+
+        wall = Wall.straight(0, 0, 4, 0, thickness=0.2, height=3.0).model_copy(
+            update={"material": "lego_blue"}
+        )
+        room = Room(
+            boundary=Polygon2D.rectangle(0, 0, 4, 3, crs=WORLD),
+            name="Hall", program="living",
+        )
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_room(room).add_wall(wall)
+        svg = level_to_svg(level, material_library=lib)
+        # The material's colour should appear in the SVG fill
+        assert "#0055BF" in svg
+
+    def test_no_material_uses_default_palette_color(self):
+        from archit_app import WORLD, Level, Room, Polygon2D, Wall, MaterialLibrary
+        from archit_app.io.svg import level_to_svg
+
+        lib = MaterialLibrary()
+        wall = Wall.straight(0, 0, 4, 0, thickness=0.2, height=3.0)
+        room = Room(
+            boundary=Polygon2D.rectangle(0, 0, 4, 3, crs=WORLD),
+            name="Hall", program="living",
+        )
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_room(room).add_wall(wall)
+        svg = level_to_svg(level, material_library=lib)
+        # Default wall fill from palette
+        from archit_app.io.svg import PALETTE
+        assert PALETTE["wall_fill"] in svg

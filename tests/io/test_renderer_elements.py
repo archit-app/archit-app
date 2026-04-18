@@ -1,7 +1,8 @@
 """
 Tests for extended element rendering in SVG, PDF, and PNG outputs.
 
-Covers: Furniture, Beam, Ramp, TextAnnotation, DimensionLine, SectionMark.
+Covers: Furniture, Beam, Ramp, TextAnnotation, DimensionLine, SectionMark,
+        Staircase, Slab.
 Each renderer (SVG always available; PDF/PNG guarded by optional deps).
 """
 
@@ -19,6 +20,8 @@ from archit_app import (
 )
 from archit_app.elements.beam import Beam
 from archit_app.elements.annotation import TextAnnotation, DimensionLine, SectionMark
+from archit_app.elements.staircase import Staircase
+from archit_app.elements.slab import Slab, SlabType
 from archit_app.geometry.point import Point2D
 from archit_app.io.svg import level_to_svg
 
@@ -88,6 +91,23 @@ def _level_with_dimension() -> Level:
 def _level_with_section_mark() -> Level:
     mark = SectionMark.horizontal(0, 6, y=2.5, tag="A", crs=WORLD)
     return _base_level().add_section_mark(mark)
+
+
+def _level_with_staircase() -> Level:
+    stair = Staircase.straight(
+        x=0.5, y=0.5, width=1.2, rise_count=12, direction=0.0,
+    )
+    return _base_level().add_staircase(stair)
+
+
+def _level_with_slab() -> Level:
+    slab = Slab(
+        boundary=Polygon2D.rectangle(0, 0, 6, 5, crs=WORLD),
+        slab_type=SlabType.FLOOR,
+        thickness=0.2,
+        elevation=0.0,
+    )
+    return _base_level().add_slab(slab)
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +208,32 @@ class TestSVGSectionMark:
         assert "<circle" in svg
 
 
+class TestSVGStaircase:
+
+    def test_staircase_group_present(self):
+        svg = level_to_svg(_level_with_staircase())
+        assert 'id="staircases"' in svg
+
+    def test_staircase_class_in_svg(self):
+        svg = level_to_svg(_level_with_staircase())
+        assert 'class="staircase"' in svg
+
+    def test_staircase_tread_lines_in_svg(self):
+        svg = level_to_svg(_level_with_staircase())
+        assert "<line" in svg
+
+
+class TestSVGSlab:
+
+    def test_slab_group_present(self):
+        svg = level_to_svg(_level_with_slab())
+        assert 'id="slabs"' in svg
+
+    def test_slab_class_in_svg(self):
+        svg = level_to_svg(_level_with_slab())
+        assert 'class="slab"' in svg
+
+
 class TestSVGLayeringOrder:
     """Verify render groups appear in the expected layer order."""
 
@@ -245,6 +291,16 @@ class TestPDFFurnitureBeamRamp:
         data = level_to_pdf_bytes(_level_with_section_mark())
         assert data[:4] == b"%PDF"
 
+    def test_level_with_staircase_produces_pdf(self):
+        from archit_app.io.pdf import level_to_pdf_bytes
+        data = level_to_pdf_bytes(_level_with_staircase())
+        assert data[:4] == b"%PDF"
+
+    def test_level_with_slab_produces_pdf(self):
+        from archit_app.io.pdf import level_to_pdf_bytes
+        data = level_to_pdf_bytes(_level_with_slab())
+        assert data[:4] == b"%PDF"
+
 
 # ---------------------------------------------------------------------------
 # PNG tests (skipped without Pillow)
@@ -281,4 +337,14 @@ class TestPNGFurnitureBeamRamp:
     def test_level_with_section_mark_produces_png(self):
         from archit_app.io.image import level_to_png_bytes
         data = level_to_png_bytes(_level_with_section_mark())
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_level_with_staircase_produces_png(self):
+        from archit_app.io.image import level_to_png_bytes
+        data = level_to_png_bytes(_level_with_staircase())
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_level_with_slab_produces_png(self):
+        from archit_app.io.image import level_to_png_bytes
+        data = level_to_png_bytes(_level_with_slab())
         assert data[:8] == b"\x89PNG\r\n\x1a\n"

@@ -299,3 +299,47 @@ class TestIfcExport:
         ]
         assert len(length_units) == 1
         assert length_units[0].Name == "METRE"
+
+    # -----------------------------------------------------------------------
+    # Extended elements: Ramp, Beam, Furniture, Elevator
+    # -----------------------------------------------------------------------
+
+    def test_ramp_exported_as_ifc_ramp(self):
+        from archit_app import Ramp
+        ramp = Ramp.straight(x=0, y=6, width=1.5, length=4.0, slope_angle=math.atan(1 / 12))
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_ramp(ramp)
+        b = Building().add_level(level)
+        model = building_to_ifc(b)
+        ifc_ramps = model.by_type("IfcRamp")
+        assert len(ifc_ramps) == 1
+        assert ifc_ramps[0].Representation is not None
+
+    def test_beam_exported_as_ifc_beam(self):
+        from archit_app.elements.beam import Beam
+        beam = Beam.straight(x1=0, y1=2, x2=6, y2=2, width=0.3, depth=0.5, elevation=3.0)
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_beam(beam)
+        b = Building().add_level(level)
+        model = building_to_ifc(b)
+        ifc_beams = model.by_type("IfcBeam")
+        assert len(ifc_beams) == 1
+        assert ifc_beams[0].Representation is not None
+
+    def test_furniture_exported_as_ifc_furnishing_element(self):
+        from archit_app import Furniture
+        furn = Furniture.sofa(x=1, y=1)
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_furniture(furn)
+        b = Building().add_level(level)
+        model = building_to_ifc(b)
+        ifc_furn = model.by_type("IfcFurnishingElement")
+        assert len(ifc_furn) == 1
+        assert ifc_furn[0].Representation is not None
+
+    def test_elevator_exported_as_ifc_transport_element(self):
+        from archit_app.elements.elevator import Elevator
+        elev_elem = Elevator.standard(x=8, y=0, bottom_level_index=0, top_level_index=1)
+        level = Level(index=0, elevation=0.0, floor_height=3.0)
+        b = Building().add_level(level).add_elevator(elev_elem)
+        model = building_to_ifc(b)
+        ifc_elev = model.by_type("IfcTransportElement")
+        assert len(ifc_elev) == 1
+        assert ifc_elev[0].Representation is not None

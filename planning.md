@@ -936,19 +936,19 @@ These are regressions: data is constructed in memory but silently lost on save/l
 
 # --- New items from 2026-04-17 gap analysis ---
 
-23.   JSON schema — full round-trip for all element types  (P11 item 38) ← CRITICAL, do first
-24.   Staircase + Slab rendering in SVG/PDF/PNG            (P12 items 41–42)
-25.   Opening visual distinction (archway, pass-through, door swing)  (P12 items 43–44)
-26.   DXF export — missing element types                   (P11 item 39)
-27.   IFC export — ramps, beams, furniture, elevators      (P11 item 40)
-28.   Level.duplicate() / Building.duplicate_level()       (P14 item 46)
-29.   Building.to_agent_context()                          (P14 item 47)
-30.   Building.validate() → ValidationReport               (P14 item 48)
-31.   Unit conversion utilities                            (P15 item 50)
-32.   Layer model + visibility filtering in renderers      (P15 item 49)
-33.   Element copy/transform utilities                     (P15 item 52)
-34.   Material linked to rendering                         (P13 item 45)
-35.   Spatial index for Level                              (P15 item 51)
-36.   GeoJSON import                                       (P16 item 53)
+23. ✓ JSON schema — version bump to 0.3.0 + __version__ sync  (P11 item 38, done 2026-04-17)
+24. ✓ Staircase + Slab rendering in SVG/PDF/PNG            (P12 items 41–42, done 2026-04-17)
+25. ✓ Opening visual distinction (archway, pass-through, door swing)  (P12 items 43–44, done 2026-04-17)
+26. ✓ DXF export — annotations, dimensions, section marks  (P11 item 39, done 2026-04-17)
+27. ✓ IFC export — ramps, beams, furniture, elevators      (P11 item 40, done 2026-04-17)
+28. ✓ Level.duplicate() / Building.duplicate_level()       (P14 item 46, done 2026-04-17)
+29. ✓ Building.to_agent_context()                          (P14 item 47, done 2026-04-17)
+30. ✓ Building.validate() → ValidationReport               (P14 item 48, done 2026-04-17)
+31. ✓ Unit conversion utilities  (archit_app/units.py)     (P15 item 50, done 2026-04-17)
+32. ✓ Layer model + visibility filtering in SVG renderer   (P15 item 49, done 2026-04-17)
+33. ✓ Element copy/transform utilities                     (P15 item 52, done 2026-04-17)
+34. ✓ Material colour linked to SVG rendering              (P13 item 45, done 2026-04-17)
+35. ✓ Spatial index for Level (Level.spatial_index())      (P15 item 51, done 2026-04-17)
+36. ✓ GeoJSON import (level_from_geojson)                  (P16 item 53, done 2026-04-17)
 37.   IFC import                                           (P16 item 54) ← complex, do last
 ```

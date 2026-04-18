@@ -80,6 +80,11 @@ _PAL = {
     "dim_line":         (136, 136, 136),
     "dim_text":         ( 85,  85,  85),
     "section_line":     (204,  34,   0),
+    "stair_fill":       (232, 244, 232),
+    "stair_stroke":     ( 46, 125,  50),
+    "slab_stroke":      (141, 110,  99),
+    "archway_fill":     (215, 204, 200),
+    "archway_stroke":   (109,  76,  65),
 }
 
 _MARGIN = 40   # pixels (before supersampling)
@@ -162,13 +167,21 @@ def _render_walls(draw, level: Level, vt: _VT) -> None:
 
 def _render_single_opening(draw, opening, vt: _VT) -> None:
     pts = _poly_pts(opening.geometry.exterior, vt)
-    if opening.kind == OpeningKind.WINDOW:
+    if opening.kind == OpeningKind.ARCHWAY:
+        fill   = _PAL["archway_fill"]
+        stroke = _PAL["archway_stroke"]
+    elif opening.kind in (OpeningKind.WINDOW, OpeningKind.PASS_THROUGH):
         fill   = _PAL["window_fill"]
         stroke = _PAL["window_stroke"]
-    else:
+    else:  # DOOR
         fill   = _PAL["door_fill"]
         stroke = _PAL["door_stroke"]
     _draw_polygon(draw, pts, fill=fill, outline=stroke)
+    # Door swing arc
+    if opening.kind == OpeningKind.DOOR and opening.swing is not None:
+        arc_pts = [vt.pt(p) for p in opening.swing.arc.to_polyline(24)]
+        if len(arc_pts) >= 2:
+            draw.line(arc_pts, fill=_PAL["door_stroke"], width=max(1, int(vt.s(0.02))))
 
 
 def _render_columns(draw, level: Level, vt: _VT) -> None:
@@ -215,6 +228,41 @@ def _render_ramps(draw, level: Level, vt: _VT, font_small) -> None:
         x1, y1 = cx - dx * 0.5, cy - dy * 0.5
         x2, y2 = cx + dx * 0.5, cy + dy * 0.5
         draw.line([(x1, y1), (x2, y2)], fill=_PAL["ramp_arrow"], width=max(1, int(vt.s(0.03))))
+
+
+def _render_staircases(draw, level: Level, vt: _VT) -> None:
+    import math as _math
+    for stair in level.staircases:
+        pts = _poly_pts(stair.boundary.exterior, vt)
+        _draw_polygon(draw, pts, fill=_PAL["stair_fill"], outline=_PAL["stair_stroke"])
+
+        # Draw tread lines
+        bb = stair.boundary.bounding_box()
+        sx0, sy0 = vt(bb.min_corner.x, bb.min_corner.y)
+        sx1, sy1 = vt(bb.max_corner.x, bb.max_corner.y)
+        cos_d = _math.cos(stair.direction + _math.pi / 2)
+        sin_d = _math.sin(stair.direction + _math.pi / 2)
+        step_size = vt.s(stair.run_depth)
+        travel_len = max(abs(sx1 - sx0), abs(sy1 - sy0))
+        n_treads = max(1, int(travel_len / max(step_size, 1)))
+        cx = (sx0 + sx1) / 2
+        cy = (sy0 + sy1) / 2
+        half_w = travel_len * 0.4
+        for i in range(n_treads + 1):
+            t = -0.5 + i / max(n_treads, 1)
+            dx = _math.cos(stair.direction) * travel_len * t
+            dy = -_math.sin(stair.direction) * travel_len * t   # Y-flip
+            lx1 = cx + dx - cos_d * half_w
+            ly1 = cy + dy + sin_d * half_w
+            lx2 = cx + dx + cos_d * half_w
+            ly2 = cy + dy - sin_d * half_w
+            draw.line([(lx1, ly1), (lx2, ly2)], fill=_PAL["stair_stroke"], width=1)
+
+
+def _render_slabs(draw, level: Level, vt: _VT) -> None:
+    for slab in level.slabs:
+        pts = _poly_pts(slab.boundary.exterior, vt)
+        _draw_polygon(draw, pts, fill=(232, 244, 232, 0), outline=_PAL["slab_stroke"])
 
 
 def _render_dimensions(draw, level: Level, vt: _VT, font_small) -> None:
@@ -334,7 +382,9 @@ def level_to_png_bytes(
         font = font_small = None
 
     _render_rooms(draw, level, vt, font, font_small)
+    _render_slabs(draw, level, vt)
     _render_ramps(draw, level, vt, font_small)
+    _render_staircases(draw, level, vt)
     _render_walls(draw, level, vt)
     _render_openings(draw, level, vt)
     _render_beams(draw, level, vt)
