@@ -465,7 +465,7 @@ Users should never have to think about CRS unless they're doing something unusua
 | SVG | No | Yes | All element types rendered (rooms, walls, openings, columns, beams, ramps, furniture, annotations, dimensions, section marks) |
 | GeoJSON | **No** | Yes | FeatureCollection per level; import not implemented |
 | DXF | Yes | **Partial** | Export only covers rooms/walls/openings/columns — newer elements not exported |
-| IFC | **No** | **Partial** | Write-only IFC 4.x; exports walls/rooms/openings/columns/slabs/staircases — **ramps, beams, furniture, annotations not exported** |
+| IFC | **Yes** | Yes | Full IFC 4.x round-trip: `building_from_ifc` reads walls/rooms/openings/columns/slabs/stairs/ramps/beams/furniture/elevators; exports same set |
 | PDF | No | Yes | All element types rendered |
 | PNG / raster | No | Yes | All element types rendered |
 
@@ -950,5 +950,5 @@ These are regressions: data is constructed in memory but silently lost on save/l
 34. ✓ Material colour linked to SVG rendering              (P13 item 45, done 2026-04-17)
 35. ✓ Spatial index for Level (Level.spatial_index())      (P15 item 51, done 2026-04-17)
 36. ✓ GeoJSON import (level_from_geojson)                  (P16 item 53, done 2026-04-17)
-37.   IFC import                                           (P16 item 54) ← complex, do last
+37. ✓ IFC import (building_from_ifc / level_from_ifc)      (P16 item 54, done 2026-04-18)
 ```

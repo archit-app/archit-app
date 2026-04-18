@@ -303,6 +303,22 @@ beams (`IfcBeam`), furniture (`IfcFurnishingElement`), elevators (`IfcTransportE
 all under the full `IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey` hierarchy.
 The IFC file can be opened in Revit, ArchiCAD, FreeCAD, and any other IFC 4-compliant viewer.
 
+```python
+# Import an IFC file back into archit_app
+from archit_app.io.ifc import building_from_ifc, level_from_ifc
+
+building = building_from_ifc("my_house.ifc")
+print(len(building.levels))          # number of floors
+print(len(building.levels[0].walls)) # walls on ground floor
+
+# Import just one storey
+ground = level_from_ifc("my_house.ifc", storey_index=0)
+```
+
+Imported element types: `IfcWall` → `Wall`, `IfcSpace` → `Room`, `IfcDoor`/`IfcWindow` → `Opening`,
+`IfcColumn` → `Column`, `IfcSlab` → `Slab`, `IfcStair` → `Staircase`, `IfcRamp` → `Ramp`,
+`IfcBeam` → `Beam`, `IfcFurnishingElement` → `Furniture`, `IfcTransportElement` → `Elevator`.
+
 ### Vertical circulation and structural elements
 
 ```python
@@ -718,6 +734,7 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | JSON migration | Done | `migrate_json()` — upgrades 0.1.0 → 0.2.0 snapshots |
 | I/O completeness | Done | SVG/PDF/PNG render furniture, beams, ramps, annotations, dimensions, section marks, staircases, slabs, archways; material-linked SVG fill colours; DXF annotation/dimension/section-mark layers; IFC extended export (ramp, beam, furniture, elevator) |
 | GeoJSON round-trip | Done | `level_from_geojson()` / `level_from_geojson_str()` import |
+| IFC round-trip | Done | `building_from_ifc()` / `level_from_ifc()` import; full element type coverage |
 | Layer registry | Done | `Layer` model; building-level layer registry; renderer visibility filtering |
 | Unit conversion | Done | `parse_dimension()`, `to_feet/inches/mm/cm`, `from_feet/inches/mm/cm` |
 | Element transforms | Done | `copy_element`, `mirror_element`, `array_element` |

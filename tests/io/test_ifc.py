@@ -31,7 +31,7 @@ from archit_app import (
     Wall,
     WallType,
 )
-from archit_app.io.ifc import save_building_ifc, building_to_ifc
+from archit_app.io.ifc import save_building_ifc, building_to_ifc, building_from_ifc, level_from_ifc
 
 try:
     import ifcopenshell as _ifcopenshell
@@ -343,3 +343,122 @@ class TestIfcExport:
         ifc_elev = model.by_type("IfcTransportElement")
         assert len(ifc_elev) == 1
         assert ifc_elev[0].Representation is not None
+
+
+# ---------------------------------------------------------------------------
+# IFC import (building_from_ifc) tests — skipped when ifcopenshell is absent
+# ---------------------------------------------------------------------------
+
+
+@_ifc_skip
+class TestIfcImport:
+    """Round-trip and import correctness tests (requires ifcopenshell)."""
+
+    @pytest.fixture()
+    def building(self):
+        return _make_building()
+
+    @pytest.fixture()
+    def roundtrip(self, building, tmp_path):
+        """Export → import round-trip; returns imported Building."""
+        path = str(tmp_path / "rt.ifc")
+        save_building_ifc(building, path)
+        return building_from_ifc(path)
+
+    def test_building_from_ifc_returns_building(self, roundtrip):
+        assert isinstance(roundtrip, Building)
+
+    def test_level_count_preserved(self, building, roundtrip):
+        assert len(roundtrip.levels) == len(building.levels)
+
+    def test_level_elevation_preserved(self, building, roundtrip):
+        orig_elev = building.levels[0].elevation
+        imp_elev = roundtrip.levels[0].elevation
+        assert math.isclose(orig_elev, imp_elev, abs_tol=1e-3)
+
+    def test_level_name_preserved(self, building, roundtrip):
+        assert roundtrip.levels[0].name == building.levels[0].name
+
+    def test_walls_imported(self, building, roundtrip):
+        assert len(roundtrip.levels[0].walls) == len(building.levels[0].walls)
+
+    def test_rooms_imported(self, building, roundtrip):
+        assert len(roundtrip.levels[0].rooms) == len(building.levels[0].rooms)
+
+    def test_columns_imported(self, building, roundtrip):
+        assert len(roundtrip.levels[0].columns) == len(building.levels[0].columns)
+
+    def test_slabs_imported(self, building, roundtrip):
+        assert len(roundtrip.levels[0].slabs) == len(building.levels[0].slabs)
+
+    def test_staircases_imported(self, building, roundtrip):
+        assert len(roundtrip.levels[0].staircases) == len(building.levels[0].staircases)
+
+    def test_room_name_preserved(self, roundtrip):
+        room = roundtrip.levels[0].rooms[0]
+        assert room.name == "Living Room"
+
+    def test_wall_height_preserved(self, building, roundtrip):
+        orig_height = building.levels[0].walls[0].height
+        imp_height = roundtrip.levels[0].walls[0].height
+        assert math.isclose(orig_height, imp_height, abs_tol=1e-3)
+
+    def test_wall_polygon_vertex_count(self, building, roundtrip):
+        orig = building.levels[0].walls[0].geometry
+        imp = roundtrip.levels[0].walls[0].geometry
+        # Both should be Polygon2D with the same number of exterior vertices
+        assert len(imp.exterior) == len(orig.exterior)
+
+    def test_building_name_preserved(self, building, roundtrip):
+        assert roundtrip.metadata.name == building.metadata.name
+
+    def test_openings_imported_as_level_openings(self, roundtrip):
+        # Doors from wall.openings are exported as IfcDoor and imported to level.openings
+        lv = roundtrip.levels[0]
+        total = len(lv.openings) + sum(len(w.openings) for w in lv.walls)
+        assert total >= 1
+
+    def test_multi_level_roundtrip(self, tmp_path):
+        b = Building()
+        for i in range(3):
+            room = Room(
+                boundary=Polygon2D.rectangle(0, 0, 5, 4, crs=WORLD),
+                name=f"Room {i}",
+                program="living",
+            )
+            lv = Level(index=i, elevation=float(i * 3), floor_height=3.0).add_room(room)
+            b = b.add_level(lv)
+        path = str(tmp_path / "ml.ifc")
+        save_building_ifc(b, path)
+        restored = building_from_ifc(path)
+        assert len(restored.levels) == 3
+        elevations = [lv.elevation for lv in restored.levels]
+        assert all(math.isclose(a, b_elev, abs_tol=1e-3)
+                   for a, b_elev in zip(elevations, [0.0, 3.0, 6.0]))
+
+    def test_level_from_ifc_returns_level(self, building, tmp_path):
+        from archit_app.building.level import Level as _Level
+        path = str(tmp_path / "lv.ifc")
+        save_building_ifc(building, path)
+        lv = level_from_ifc(path, storey_index=0)
+        assert isinstance(lv, _Level)
+        assert len(lv.rooms) >= 1
+
+    def test_empty_building_roundtrip(self, tmp_path):
+        b = Building(metadata=BuildingMetadata(name="Empty"))
+        lv = Level(index=0, elevation=0.0, floor_height=3.0)
+        b = b.add_level(lv)
+        path = str(tmp_path / "empty.ifc")
+        save_building_ifc(b, path)
+        restored = building_from_ifc(path)
+        assert len(restored.levels) == 1
+        assert len(restored.levels[0].rooms) == 0
+
+    def test_import_guard_raises(self, tmp_path):
+        """building_from_ifc must raise ImportError when ifcopenshell is absent."""
+        from unittest.mock import patch
+        import sys
+        path = str(tmp_path / "dummy.ifc")
+        with patch.dict(sys.modules, {"ifcopenshell": None, "ifcopenshell.guid": None}):
+            with pytest.raises(ImportError, match="ifcopenshell"):
+                building_from_ifc(path)

@@ -37,18 +37,20 @@ from __future__ import annotations
 import time
 from uuid import UUID, uuid4
 
-from archit_app.building.building import Building
+from archit_app.building.building import Building, BuildingMetadata
 from archit_app.building.level import Level
-from archit_app.elements.column import Column
-from archit_app.elements.opening import Opening, OpeningKind
-from archit_app.elements.room import Room
-from archit_app.elements.slab import Slab, SlabType
 from archit_app.elements.beam import Beam
+from archit_app.elements.column import Column
 from archit_app.elements.elevator import Elevator
 from archit_app.elements.furniture import Furniture
+from archit_app.elements.opening import Opening, OpeningKind
 from archit_app.elements.ramp import Ramp
+from archit_app.elements.room import Room
+from archit_app.elements.slab import Slab, SlabType
 from archit_app.elements.staircase import Staircase
 from archit_app.elements.wall import Wall
+from archit_app.geometry.crs import WORLD
+from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
 
 
@@ -792,3 +794,422 @@ def save_building_ifc(building: Building, path: str) -> None:
     """
     model = building_to_ifc(building)
     model.write(path)
+
+
+# ---------------------------------------------------------------------------
+# IFC import — geometry helpers
+# ---------------------------------------------------------------------------
+
+
+def _extract_polygon_from_product(ifc_product) -> "Polygon2D | None":
+    """
+    Extract a 2-D footprint polygon from an IFC product's body representation.
+
+    Looks for the first ``IfcExtrudedAreaSolid`` whose swept area is an
+    ``IfcArbitraryClosedProfileDef`` with an ``IfcPolyline`` outer curve.
+    Returns ``None`` if no suitable geometry is found.
+    """
+    try:
+        rep = ifc_product.Representation
+        if rep is None:
+            return None
+        for shape_rep in rep.Representations:
+            for item in shape_rep.Items:
+                if not item.is_a("IfcExtrudedAreaSolid"):
+                    continue
+                profile = item.SweptArea
+                if not profile.is_a("IfcArbitraryClosedProfileDef"):
+                    continue
+                outer = profile.OuterCurve
+                if not outer.is_a("IfcPolyline"):
+                    continue
+                pts = []
+                for ifc_pt in outer.Points:
+                    coords = ifc_pt.Coordinates
+                    pts.append(Point2D(x=float(coords[0]), y=float(coords[1]), crs=WORLD))
+                # GeoJSON / IFC polylines may close themselves (first == last)
+                if len(pts) > 1 and pts[0].x == pts[-1].x and pts[0].y == pts[-1].y:
+                    pts = pts[:-1]
+                if len(pts) >= 3:
+                    return Polygon2D(exterior=tuple(pts), crs=WORLD)
+    except Exception:
+        pass
+    return None
+
+
+def _extract_extrusion_depth(ifc_product) -> float:
+    """Return the extrusion depth from the first IfcExtrudedAreaSolid found."""
+    try:
+        rep = ifc_product.Representation
+        if rep is None:
+            return 3.0
+        for shape_rep in rep.Representations:
+            for item in shape_rep.Items:
+                if item.is_a("IfcExtrudedAreaSolid"):
+                    return float(item.Depth)
+    except Exception:
+        pass
+    return 3.0
+
+
+def _extract_local_z(ifc_product) -> float:
+    """Return the Z component of the product's local placement."""
+    try:
+        pl = ifc_product.ObjectPlacement
+        if pl is None:
+            return 0.0
+        if pl.is_a("IfcLocalPlacement"):
+            rel = pl.RelativePlacement
+            if rel and rel.is_a("IfcAxis2Placement3D"):
+                return float(rel.Location.Coordinates[2])
+    except Exception:
+        pass
+    return 0.0
+
+
+# ---------------------------------------------------------------------------
+# IFC entity → archit_app element converters
+# ---------------------------------------------------------------------------
+
+
+def _ifc_wall_to_wall(ifc_wall) -> "Wall | None":
+    poly = _extract_polygon_from_product(ifc_wall)
+    if poly is None:
+        return None
+    height = _extract_extrusion_depth(ifc_wall)
+    obj_type = (getattr(ifc_wall, "ObjectType", None) or "interior").lower()
+    from archit_app.elements.wall import WallType as _WT
+    _wt_map = {
+        "exterior": _WT.EXTERIOR,
+        "interior": _WT.INTERIOR,
+        "curtain_wall": _WT.CURTAIN,
+        "curtain": _WT.CURTAIN,
+        "shear": _WT.SHEAR,
+        "retaining": _WT.RETAINING,
+        "party": _WT.PARTY,
+    }
+    wall_type = _wt_map.get(obj_type, _WT.INTERIOR)
+    return Wall(geometry=poly, thickness=0.2, height=height, wall_type=wall_type)
+
+
+def _ifc_space_to_room(ifc_space) -> "Room | None":
+    poly = _extract_polygon_from_product(ifc_space)
+    if poly is None:
+        return None
+    name = ifc_space.Name or ""
+    program = ifc_space.ObjectType or ifc_space.Description or ""
+    return Room(boundary=poly, name=name, program=program)
+
+
+def _ifc_door_to_opening(ifc_door) -> "Opening | None":
+    poly = _extract_polygon_from_product(ifc_door)
+    if poly is None:
+        return None
+    width = float(getattr(ifc_door, "OverallWidth", None) or 0.9)
+    height = float(getattr(ifc_door, "OverallHeight", None) or 2.1)
+    sill_z = _extract_local_z(ifc_door)
+    return Opening(
+        geometry=poly,
+        kind=OpeningKind.DOOR,
+        width=width,
+        height=height,
+        sill_height=max(sill_z, 0.0),
+    )
+
+
+def _ifc_window_to_opening(ifc_window) -> "Opening | None":
+    poly = _extract_polygon_from_product(ifc_window)
+    if poly is None:
+        return None
+    width = float(getattr(ifc_window, "OverallWidth", None) or 1.2)
+    height = float(getattr(ifc_window, "OverallHeight", None) or 1.2)
+    sill_z = _extract_local_z(ifc_window)
+    return Opening(
+        geometry=poly,
+        kind=OpeningKind.WINDOW,
+        width=width,
+        height=height,
+        sill_height=max(sill_z, 0.0),
+    )
+
+
+def _ifc_column_to_column(ifc_col) -> "Column | None":
+    poly = _extract_polygon_from_product(ifc_col)
+    if poly is None:
+        return None
+    height = _extract_extrusion_depth(ifc_col)
+    from archit_app.elements.column import ColumnShape
+    return Column(geometry=poly, height=height, shape=ColumnShape.RECTANGULAR)
+
+
+def _ifc_slab_to_slab(ifc_slab, storey_elev: float = 0.0) -> "Slab | None":
+    poly = _extract_polygon_from_product(ifc_slab)
+    if poly is None:
+        return None
+    thickness = _extract_extrusion_depth(ifc_slab)
+    z_bottom = _extract_local_z(ifc_slab)
+    elevation = storey_elev + z_bottom + thickness
+
+    predefined = (getattr(ifc_slab, "PredefinedType", None) or "FLOOR").upper()
+    from archit_app.elements.slab import SlabType
+    slab_type_map = {"FLOOR": SlabType.FLOOR, "ROOF": SlabType.ROOF, "CEILING": SlabType.CEILING}
+    slab_type = slab_type_map.get(predefined, SlabType.FLOOR)
+
+    return Slab(
+        boundary=poly,
+        thickness=thickness,
+        elevation=elevation,
+        slab_type=slab_type,
+    )
+
+
+def _ifc_stair_to_staircase(ifc_stair) -> "Staircase | None":
+    poly = _extract_polygon_from_product(ifc_stair)
+    if poly is None:
+        return None
+    total_rise = _extract_extrusion_depth(ifc_stair)
+    rise_count = 10
+    rise_height = total_rise / rise_count
+    bb = poly.bounding_box()
+    width = min(bb.width, bb.height)
+    return Staircase(
+        boundary=poly,
+        rise_count=rise_count,
+        rise_height=rise_height,
+        run_depth=0.28,
+        width=width,
+    )
+
+
+def _ifc_ramp_to_ramp(ifc_ramp) -> "Ramp | None":
+    poly = _extract_polygon_from_product(ifc_ramp)
+    if poly is None:
+        return None
+    import math as _math
+    rise = _extract_extrusion_depth(ifc_ramp)
+    bb = poly.bounding_box()
+    length = max(bb.width, bb.height)
+    slope_angle = _math.atan2(rise, length) if length > 0 else 0.0
+    width = min(bb.width, bb.height)
+    return Ramp(
+        boundary=poly,
+        width=width,
+        slope_angle=slope_angle,
+    )
+
+
+def _ifc_beam_to_beam(ifc_beam) -> "Beam | None":
+    poly = _extract_polygon_from_product(ifc_beam)
+    if poly is None:
+        return None
+    depth = _extract_extrusion_depth(ifc_beam)
+    z = _extract_local_z(ifc_beam)
+    elevation = z + depth
+    bb = poly.bounding_box()
+    width = min(bb.width, bb.height)
+    from archit_app.elements.beam import BeamSection
+    return Beam(geometry=poly, width=width, depth=depth, elevation=elevation,
+                section=BeamSection.RECTANGULAR)
+
+
+def _ifc_furnishing_to_furniture(ifc_furn) -> "Furniture | None":
+    poly = _extract_polygon_from_product(ifc_furn)
+    if poly is None:
+        return None
+    height = _extract_extrusion_depth(ifc_furn)
+    label = ifc_furn.Name or ""
+    bb = poly.bounding_box()
+    from archit_app.elements.furniture import FurnitureCategory
+    return Furniture(
+        footprint=poly,
+        label=label,
+        category=FurnitureCategory.CUSTOM,
+        width=bb.width,
+        depth=bb.height,
+        height=height,
+    )
+
+
+def _ifc_transport_to_elevator(ifc_te) -> "Elevator | None":
+    poly = _extract_polygon_from_product(ifc_te)
+    if poly is None:
+        return None
+    bb = poly.bounding_box()
+    return Elevator(
+        shaft=poly,
+        cab_width=bb.width * 0.8,
+        cab_depth=bb.height * 0.8,
+        bottom_level_index=0,
+        top_level_index=1,
+    )
+
+
+# ---------------------------------------------------------------------------
+# IFC import — public API
+# ---------------------------------------------------------------------------
+
+
+def building_from_ifc(path: str) -> Building:
+    """
+    Import a :class:`~archit_app.building.building.Building` from an IFC 4 file.
+
+    Reads the ``IfcBuildingStorey`` hierarchy and converts contained elements
+    back to their corresponding archit_app types via the
+    ``IfcRelContainedInSpatialStructure`` relationships.
+
+    Supported element types
+    -----------------------
+    * ``IfcWall``              → :class:`~archit_app.elements.wall.Wall`
+    * ``IfcSpace``             → :class:`~archit_app.elements.room.Room`
+    * ``IfcDoor``              → :class:`~archit_app.elements.opening.Opening` (DOOR)
+    * ``IfcWindow``            → :class:`~archit_app.elements.opening.Opening` (WINDOW)
+    * ``IfcColumn``            → :class:`~archit_app.elements.column.Column`
+    * ``IfcSlab``              → :class:`~archit_app.elements.slab.Slab`
+    * ``IfcStair``             → :class:`~archit_app.elements.staircase.Staircase`
+    * ``IfcRamp``              → :class:`~archit_app.elements.ramp.Ramp`
+    * ``IfcBeam``              → :class:`~archit_app.elements.beam.Beam`
+    * ``IfcFurnishingElement`` → :class:`~archit_app.elements.furniture.Furniture`
+    * ``IfcTransportElement``  → :class:`~archit_app.elements.elevator.Elevator`
+      (building-level, not storey-level)
+
+    Geometry is reconstructed from ``IfcExtrudedAreaSolid`` profiles.
+    Elements whose geometry cannot be read are silently skipped.
+
+    Parameters
+    ----------
+    path:
+        Path to the IFC file.
+
+    Returns
+    -------
+    Building
+        A :class:`~archit_app.building.building.Building` populated with
+        levels and elements extracted from the IFC file.
+
+    Raises
+    ------
+    ImportError
+        If *ifcopenshell* is not installed.
+    """
+    ifc = _require_ifcopenshell()
+    f = ifc.open(path)
+
+    # --- Building metadata ---------------------------------------------------
+    projects = f.by_type("IfcProject")
+    project_name = projects[0].Name if projects else ""
+    buildings_ifc = f.by_type("IfcBuilding")
+    building_name = (buildings_ifc[0].Name if buildings_ifc else project_name) or ""
+
+    # --- Storeys → Levels ----------------------------------------------------
+    storeys = sorted(
+        f.by_type("IfcBuildingStorey"),
+        key=lambda s: float(s.Elevation or 0.0),
+    )
+
+    # Build a map: storey IFC ID → set of contained element IDs
+    storey_elements: dict[int, list] = {s.id(): [] for s in storeys}
+    for rel in f.by_type("IfcRelContainedInSpatialStructure"):
+        storey = rel.RelatingStructure
+        if storey.is_a("IfcBuildingStorey") and storey.id() in storey_elements:
+            storey_elements[storey.id()].extend(rel.RelatedElements)
+
+    levels: list[Level] = []
+    for idx, storey in enumerate(storeys):
+        elev = float(storey.Elevation or 0.0)
+        level = Level(
+            index=idx,
+            elevation=elev,
+            floor_height=3.0,
+            name=storey.Name or f"Level {idx}",
+        )
+        for el in storey_elements.get(storey.id(), []):
+            try:
+                if el.is_a("IfcWall"):
+                    obj = _ifc_wall_to_wall(el)
+                    if obj:
+                        level = level.add_wall(obj)
+                elif el.is_a("IfcSpace"):
+                    obj = _ifc_space_to_room(el)
+                    if obj:
+                        level = level.add_room(obj)
+                elif el.is_a("IfcDoor"):
+                    obj = _ifc_door_to_opening(el)
+                    if obj:
+                        level = level.add_opening(obj)
+                elif el.is_a("IfcWindow"):
+                    obj = _ifc_window_to_opening(el)
+                    if obj:
+                        level = level.add_opening(obj)
+                elif el.is_a("IfcColumn"):
+                    obj = _ifc_column_to_column(el)
+                    if obj:
+                        level = level.add_column(obj)
+                elif el.is_a("IfcSlab"):
+                    obj = _ifc_slab_to_slab(el, storey_elev=elev)
+                    if obj:
+                        level = level.add_slab(obj)
+                elif el.is_a("IfcStair"):
+                    obj = _ifc_stair_to_staircase(el)
+                    if obj:
+                        level = level.add_staircase(obj)
+                elif el.is_a("IfcRamp"):
+                    obj = _ifc_ramp_to_ramp(el)
+                    if obj:
+                        level = level.add_ramp(obj)
+                elif el.is_a("IfcBeam"):
+                    obj = _ifc_beam_to_beam(el)
+                    if obj:
+                        level = level.add_beam(obj)
+                elif el.is_a("IfcFurnishingElement"):
+                    obj = _ifc_furnishing_to_furniture(el)
+                    if obj:
+                        level = level.add_furniture(obj)
+            except Exception:
+                pass
+        levels.append(level)
+
+    # --- Elevators (IfcTransportElement, building-level) ---------------------
+    elevators: list[Elevator] = []
+    for te in f.by_type("IfcTransportElement"):
+        try:
+            predefined = (getattr(te, "PredefinedType", None) or "").upper()
+            if predefined == "ELEVATOR":
+                obj = _ifc_transport_to_elevator(te)
+                if obj:
+                    elevators.append(obj)
+        except Exception:
+            pass
+
+    return Building(
+        metadata=BuildingMetadata(name=building_name),
+        levels=tuple(levels),
+        elevators=tuple(elevators),
+    )
+
+
+def level_from_ifc(path: str, *, storey_index: int = 0) -> Level:
+    """
+    Import a single :class:`~archit_app.building.level.Level` from an IFC file.
+
+    Parameters
+    ----------
+    path:
+        Path to the IFC file.
+    storey_index:
+        Which ``IfcBuildingStorey`` to import (0 = lowest, by elevation).
+
+    Returns
+    -------
+    Level
+
+    Raises
+    ------
+    ImportError
+        If *ifcopenshell* is not installed.
+    IndexError
+        If the file has fewer storeys than *storey_index*.
+    """
+    building = building_from_ifc(path)
+    if not building.levels:
+        return Level(index=0, elevation=0.0, floor_height=3.0)
+    return building.levels[min(storey_index, len(building.levels) - 1)]
