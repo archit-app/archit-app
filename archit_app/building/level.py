@@ -130,6 +130,42 @@ class Level(BaseModel):
             update={"section_marks": (*self.section_marks, mark)}
         )
 
+    def replace_element(self, element_id: UUID, new_element: Element) -> "Level":
+        """Return a new Level with the element replaced in-place (same position in its collection).
+
+        Raises KeyError if no element with that id exists on this level.
+        """
+        found = False
+
+        def _sub(coll: tuple, eid: UUID, replacement: Element) -> tuple:
+            nonlocal found
+            result = []
+            for item in coll:
+                if item.id == eid:
+                    result.append(replacement)
+                    found = True
+                else:
+                    result.append(item)
+            return tuple(result)
+
+        updated = self.model_copy(update={
+            "walls": _sub(self.walls, element_id, new_element),
+            "rooms": _sub(self.rooms, element_id, new_element),
+            "openings": _sub(self.openings, element_id, new_element),
+            "columns": _sub(self.columns, element_id, new_element),
+            "staircases": _sub(self.staircases, element_id, new_element),
+            "slabs": _sub(self.slabs, element_id, new_element),
+            "ramps": _sub(self.ramps, element_id, new_element),
+            "beams": _sub(self.beams, element_id, new_element),
+            "furniture": _sub(self.furniture, element_id, new_element),
+            "text_annotations": _sub(self.text_annotations, element_id, new_element),
+            "dimensions": _sub(self.dimensions, element_id, new_element),
+            "section_marks": _sub(self.section_marks, element_id, new_element),
+        })
+        if not found:
+            raise KeyError(f"No element with id {element_id} found on level {self.index}.")
+        return updated
+
     def remove_element(self, element_id: UUID) -> "Level":
         return self.model_copy(
             update={

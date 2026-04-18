@@ -573,9 +573,12 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Layer 6 — Analysis | Done | Topology graph, egress, area validation, zoning compliance, daylighting, isovist |
 | CoordinateConverter | Done | Graph-based multi-CRS path-finding; `Point2D.to()` |
 | NURBS evaluator | Done | Cox–de Boor; `clamped_uniform()` factory; exact conic sections |
-| Layer 4 — App infrastructure | Planned | `ElementQuery` (select/filter), `History` (undo/redo), `Viewport` (view state) |
-| Analysis completeness | Planned | Accessibility checker, room-from-walls auto-detection |
-| I/O completeness | Planned | SVG/PDF/PNG render furniture+annotations; GeoJSON import; JSON migration |
+| Layer 4 — App infrastructure | Done | `ElementQuery` (select/filter), `History` (undo/redo), `Viewport` (view state) |
+| Material registry | Done | `Material`, `MaterialLibrary`, 12 builtin presets, `default_library` |
+| Level / Building utilities | Done | `Level.replace_element()`, `Building.stats()` → `BuildingStats` |
+| Analysis completeness | Done | Accessibility checker, room-from-walls auto-detection |
+| JSON migration | Done | `migrate_json()` — upgrades 0.1.0 → 0.2.0 snapshots |
+| I/O completeness | Planned | SVG/PDF/PNG render furniture+annotations; GeoJSON import |
 
 ---
 

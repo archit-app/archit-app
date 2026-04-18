@@ -119,9 +119,69 @@ class Building(BaseModel):
     def with_grid(self, grid: StructuralGrid) -> "Building":
         return self.model_copy(update={"grid": grid})
 
+    def stats(self) -> "BuildingStats":
+        """Return a structured summary of element counts and areas across all levels."""
+        area_by_program: dict[str, float] = {}
+        net_area = 0.0
+        counts_by_level = []
+        totals = dict(rooms=0, walls=0, openings=0, columns=0,
+                      staircases=0, slabs=0, ramps=0, beams=0, furniture=0)
+
+        for lv in self.levels:
+            lv_net = sum(r.area for r in lv.rooms)
+            net_area += lv_net
+            for r in lv.rooms:
+                area_by_program[r.program] = area_by_program.get(r.program, 0.0) + r.area
+            lv_counts = {
+                "level_index": lv.index,
+                "rooms": len(lv.rooms),
+                "walls": len(lv.walls),
+                "openings": len(lv.openings),
+                "columns": len(lv.columns),
+                "staircases": len(lv.staircases),
+                "slabs": len(lv.slabs),
+                "ramps": len(lv.ramps),
+                "beams": len(lv.beams),
+                "furniture": len(lv.furniture),
+                "net_area_m2": round(lv_net, 3),
+            }
+            counts_by_level.append(lv_counts)
+            for k in totals:
+                totals[k] += lv_counts.get(k, 0)
+
+        return BuildingStats(
+            total_levels=len(self.levels),
+            total_rooms=totals["rooms"],
+            total_walls=totals["walls"],
+            total_openings=totals["openings"],
+            total_columns=totals["columns"],
+            total_furniture=totals["furniture"],
+            gross_floor_area_m2=round(self.total_gross_area, 3),
+            net_floor_area_m2=round(net_area, 3),
+            area_by_program={k: round(v, 3) for k, v in area_by_program.items()},
+            element_counts_by_level=counts_by_level,
+        )
+
     def __repr__(self) -> str:
         return (
             f"Building(name={self.metadata.name!r}, "
             f"levels={len(self.levels)}, "
             f"gross_area={self.total_gross_area:.1f}m²)"
         )
+
+
+class BuildingStats(BaseModel):
+    """Structured summary of a building's element counts and areas."""
+
+    model_config = ConfigDict(frozen=True)
+
+    total_levels: int
+    total_rooms: int
+    total_walls: int
+    total_openings: int
+    total_columns: int
+    total_furniture: int
+    gross_floor_area_m2: float
+    net_floor_area_m2: float
+    area_by_program: dict[str, float]
+    element_counts_by_level: list[dict]

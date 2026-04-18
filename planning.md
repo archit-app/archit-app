@@ -461,7 +461,7 @@ Users should never have to think about CRS unless they're doing something unusua
 #### I/O — partial
 | Format | Read | Write | Notes |
 |---|---|---|---|
-| JSON | Yes | Yes | Full round-trip, versioned (`"version": "0.2.0"`); no migration logic yet |
+| JSON | Yes | Yes | Full round-trip, versioned (`"version": "0.2.0"`); migration chain from 0.1.0 |
 | SVG | No | Yes | Rooms, walls, openings, columns, scale bar; **furniture/annotations/dimensions not rendered** |
 | GeoJSON | **No** | Yes | FeatureCollection per level; import not implemented |
 | DXF | Yes | Yes | `ezdxf` required; full round-trip |
@@ -675,87 +675,83 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
     - `tests/geometry/test_curve.py` — 44 tests: `ArcCurve` (start/end/mid points, `span_angle` incl. wrap-around and clockwise, `to_polyline`, length, `transformed`) and `BezierCurve` (quadratic and cubic: degree, endpoints, midpoint via De Casteljau at t=0.5, polyline, length, `transformed`)
     - `tests/elements/test_column.py` — 16 tests: `Column` rectangular/circular factories, footprint area, bounding_box, material, shape enum, `with_tag`, frozen
     - Total suite: **719 passed**, 26 skipped
-27. **`OpeningKind.ARCHWAY` / `PASS_THROUGH` factories** — enum variants exist but no geometry factories
-    - `Opening.archway(x, y, width, height, wall_thickness)` — arched top (semicircular arc geometry); no swing, no sill
+27. ✅ **`OpeningKind.ARCHWAY` / `PASS_THROUGH` factories** — **Done** (`elements/opening.py`, 2026-04-17)
+    - `Opening.archway(x, y, width, height, wall_thickness)` — arched top; no swing, no sill
     - `Opening.pass_through(x, y, width, height, wall_thickness)` — low counter-height opening; `sill_height > 0`
+    - 16 tests in `tests/elements/test_opening_factories.py`
 
 ---
 
-#### P7 — Application Infrastructure (critical for backbone role)
+#### P7 — Application Infrastructure ✓ Complete
 
-These three modules are what separate a data library from an application backbone.
-
-28. **Selection & query system** (`archit_app/query.py`)
+28. ✅ **Selection & query system** (`archit_app/query.py`) — **Done** (2026-04-17)
     - `ElementQuery` — fluent builder that filters elements across a `Level`
     - `.walls()`, `.rooms()`, `.openings()`, `.columns()`, `.furniture()`, `.all()` — type filters
     - `.on_layer(name)` — layer filter
-    - `.tagged(key)`, `.tagged(key, value)` — tag presence / value filter
+    - `.tagged(key)`, `.tagged(key, value)` — tag presence / value filter; sentinel pattern avoids None ambiguity
     - `.within_bbox(bbox)` — spatial filter (element bounding box overlaps query box)
     - `.with_program(program)` — room-specific program filter
     - `.first()`, `.list()`, `.count()` — terminal methods
     - `query(level)` top-level factory function
     - Tests in `tests/test_query.py`
 
-29. **Undo / redo history** (`archit_app/history.py`)
-    - `History` — immutable stack of `Building` snapshots (leverages existing immutability)
+29. ✅ **Undo / redo history** (`archit_app/history.py`) — **Done** (2026-04-17)
+    - `History` — immutable Pydantic model; tuple of `Building` snapshots + cursor index
     - `History.start(building)` — class-method factory
-    - `.push(building)` — returns new `History` with the snapshot appended; truncates redo branch
-    - `.undo()` — returns `(building, new_history)` or raises `HistoryError` if at beginning
-    - `.redo()` — returns `(building, new_history)` or raises `HistoryError` if at end
-    - `.can_undo`, `.can_redo` — boolean properties
-    - `.current` — the present `Building`
-    - `max_snapshots: int = 100` — configurable cap; oldest snapshot dropped when exceeded
+    - `.push(building)` — truncates redo branch; enforces `max_snapshots` by dropping oldest
+    - `.undo()` / `.redo()` — return `(building, new_history)` or raise `HistoryError`
+    - `.can_undo`, `.can_redo`, `.current` properties
+    - `max_snapshots: int = 100` — configurable cap
     - Tests in `tests/test_history.py`
 
-30. **Viewport model** (`archit_app/viewport.py`)
+30. ✅ **Viewport model** (`archit_app/viewport.py`) — **Done** (2026-04-17)
     - `Viewport` — immutable Pydantic model for view state
-    - Fields: `canvas_width_px`, `canvas_height_px`, `pixels_per_meter`, `pan_x`, `pan_y` (world-space), `active_level_index`
-    - `world_to_screen(point: Point2D) → tuple[float, float]` — apply pan + scale + Y-flip
+    - Fields: `canvas_width_px`, `canvas_height_px`, `pixels_per_meter`, `pan_x`, `pan_y` (world-space coords of canvas centre), `active_level_index`
+    - `world_to_screen(point) → (sx, sy)` — pan + scale + Y-flip
     - `screen_to_world(sx, sy) → Point2D` — inverse
-    - `zoom(factor, around_sx, around_sy) → Viewport` — zoom centred on a screen point
-    - `pan(dx_px, dy_px) → Viewport` — returns new viewport
-    - `fit(bbox: BoundingBox2D, padding=0.1) → Viewport` — fit a world bbox into the canvas
-    - `to_converter() → CoordinateConverter` — build a `CoordinateConverter` from current state
+    - `zoom(factor, around_sx, around_sy) → Viewport` — preserves world point under anchor pixel
+    - `pan(dx_px, dy_px) → Viewport` — pixel-space pan
+    - `fit(bbox, padding=0.1) → Viewport` — min-scale fit with centring
+    - `to_converter() → CoordinateConverter` — builds converter from current state
     - Tests in `tests/test_viewport.py`
 
 ---
 
-#### P8 — Element & Model Completeness
+#### P8 — Element & Model Completeness ✓ Complete
 
-31. **Material registry** (`archit_app/elements/material.py`)
-    - `Material` — Pydantic model: `name`, `color_hex: str`, `category` (enum: CONCRETE, BRICK, TIMBER, GLASS, STEEL, GYPSUM, TILE, OTHER), `thermal_conductivity_wm: float | None`, `description: str`
-    - `MaterialLibrary` — registry: `register(material)`, `get(name)`, `all()`, `by_category(cat)`
-    - `BUILTIN_MATERIALS` — 12 preset materials (concrete, brick, timber, glass, steel, gypsum, plaster, tile, stone, insulation, aluminium, carpet)
-    - `Wall`, `Slab`, `Beam`, `Column` `material` fields stay as `str | None` (backward-compat); `Material` is a separate lookup layer
+31. ✅ **Material registry** (`archit_app/elements/material.py`) — **Done** (2026-04-17)
+    - `MaterialCategory` enum: 12 values (CONCRETE, BRICK, TIMBER, GLASS, STEEL, GYPSUM, TILE, STONE, INSULATION, METAL, FABRIC, OTHER)
+    - `Material` — frozen Pydantic model: `name`, `color_hex`, `category`, `thermal_conductivity_wm`, `description`
+    - `MaterialLibrary` — plain Python registry: `register()`, `unregister()`, `get()`, `get_or_none()`, `all()`, `by_category()`, `names()`, `__contains__`, `__len__`, `__iter__`
+    - `BUILTIN_MATERIALS` — 12 preset materials; `default_library` module-level singleton
     - Tests in `tests/elements/test_material.py`
 
-32. **`Level.replace_element()`** — currently `add_*` + `remove_element()` exist but no atomic replace
+32. ✅ **`Level.replace_element()`** — **Done** (`building/level.py`, 2026-04-17)
     - `Level.replace_element(element_id: UUID, new_element: Element) → Level`
-    - Finds the collection containing `element_id`, substitutes in-place maintaining order
+    - Searches all 12 element collections; substitutes in-place preserving order
     - Raises `KeyError` if id not found
-    - Tests added to existing element test files
+    - Tests in `tests/building/test_building_stats.py`
 
-33. **`Building.stats()`** — structured summary for dashboards and agent context
-    - `BuildingStats` — Pydantic model returned by `building.stats()`
-    - Fields: `total_levels`, `total_rooms`, `total_walls`, `total_openings`, `total_columns`, `total_furniture`, `gross_floor_area_m2`, `net_floor_area_m2` (sum of room areas), `area_by_program: dict[str, float]`, `element_counts_by_level: list[dict]`
-    - Tests in `tests/building/test_stats.py`
+33. ✅ **`Building.stats()`** — **Done** (`building/building.py`, 2026-04-17)
+    - `BuildingStats` — frozen Pydantic model returned by `building.stats()`
+    - Fields: `total_levels`, `total_rooms`, `total_walls`, `total_openings`, `total_columns`, `total_furniture`, `gross_floor_area_m2`, `net_floor_area_m2`, `area_by_program: dict[str, float]`, `element_counts_by_level: list[dict]`
+    - Tests in `tests/building/test_building_stats.py`
 
 ---
 
-#### P9 — Analysis Completeness
+#### P9 — Analysis Completeness ✓ Complete
 
-34. **Accessibility analysis** (`archit_app/analysis/accessibility.py`)
+34. ✅ **Accessibility analysis** (`archit_app/analysis/accessibility.py`) — **Done** (2026-04-17)
     - `check_accessibility(level) → AccessibilityReport`
-    - `AccessibilityCheck` — name, passed, detail, element_id
-    - Checks: door clear width ≥ 0.85 m, corridor width ≥ 1.2 m (widest gap between parallel walls), ramp slope ≤ 1:12 (≈ 4.8°), turning circle (0.9 m radius) fits in wet rooms
-    - `AccessibilityReport.passed_all`, `.failures`, `.warnings`
+    - `AccessibilityCheck(BaseModel, frozen=True)` — name, passed, detail, severity, element_id
+    - Checks: door clear width ≥ 0.85 m, corridor width ≥ 1.2 m, ramp slope ≤ 1:12, turning circle (0.9 m radius) fits in wet rooms
+    - `AccessibilityReport.passed_all`, `.failures`, `.errors`, `.warnings`, `.summary()`
     - Tests in `tests/analysis/test_accessibility.py`
 
-35. **Room-from-walls auto-detection** (`archit_app/analysis/roomfinder.py`)
-    - `find_rooms(walls: list[Wall], *, min_area=0.5) → list[Polygon2D]`
-    - Polygonises the wall centre-lines using Shapely `polygonize`; filters by min area; returns candidate room outlines
+35. ✅ **Room-from-walls auto-detection** (`archit_app/analysis/roomfinder.py`) — **Done** (2026-04-17)
+    - `find_rooms(walls, *, min_area=0.5) → list[Polygon2D]`
+    - Polygonises wall geometry using Shapely `polygonize` + `unary_union`; deduplicates by WKB; sorts largest first
     - `rooms_from_walls(walls, *, level_index=0, program="unknown", min_area=0.5) → list[Room]`
-    - High-level helper: calls `find_rooms` then wraps each polygon in a `Room`
     - Tests in `tests/analysis/test_roomfinder.py`
 
 ---
@@ -772,13 +768,13 @@ These three modules are what separate a data library from an application backbon
     - PDF and PNG renderers extended in `io/pdf.py` and `io/image.py` to match
     - Tests updated in `tests/io/test_svg.py`
 
-37. **JSON version migration** (`archit_app/io/json_schema.py`)
+37. ✅ **JSON version migration** (`archit_app/io/json_schema.py`) — **Done** (2026-04-17)
     - `migrate_json(data: dict) → dict` — upgrades old JSON snapshots to current schema
-    - `CURRENT_VERSION = "0.2.0"` constant
+    - `FORMAT_VERSION = "0.2.0"` constant; `PREVIOUS_VERSIONS = ("0.1.0",)`
     - Migration table: `{"0.1.0": _migrate_0_1_to_0_2}` keyed by from-version
-    - `_migrate_0_1_to_0_2` handles: `"site"` → `"land"` key rename, adds missing `"furniture"` / `"text_annotations"` / `"dimensions"` / `"section_marks"` arrays
+    - `_migrate_0_1_to_0_2` handles: `"site"` → `"land"` key rename, adds missing level array keys
     - `building_from_dict` calls `migrate_json` before deserializing
-    - Tests in `tests/io/test_json_migration.py`
+    - Tests in `tests/io/test_json_schema.py`
 
 ---
 
@@ -797,14 +793,14 @@ These three modules are what separate a data library from an application backbon
 10. ✓ Furniture element                  — done 2026-04-16  (elements/furniture.py)
 11. ✓ Annotations / dimensions           — done 2026-04-17  (elements/annotation.py)
 12. ✓ Missing test coverage              — done 2026-04-17  (tests/geometry/, tests/elements/)
-13.   Archway / pass-through factories   (P8 item 27)
-14.   Selection & query system           (P7 item 28) ← highest application value
-15.   Undo / redo history                (P7 item 29)
-16.   Viewport model                     (P7 item 30)
-17.   Material registry                  (P8 item 31)
-18.   Level.replace_element + Building.stats  (P8 items 32–33)
-19.   Accessibility analysis             (P9 item 34)
-20.   Room-from-walls auto-detection     (P9 item 35)
-21.   SVG/PDF/PNG renderer completeness  (P10 item 36)
-22.   JSON version migration             (P10 item 37)
+13. ✓ Archway / pass-through factories   (P8 item 27, done 2026-04-17)
+14. ✓ Selection & query system           (P7 item 28, done 2026-04-17)
+15. ✓ Undo / redo history                (P7 item 29, done 2026-04-17)
+16. ✓ Viewport model                     (P7 item 30, done 2026-04-17)
+17. ✓ Material registry                  (P8 item 31, done 2026-04-17)
+18. ✓ Level.replace_element + Building.stats  (P8 items 32–33, done 2026-04-17)
+19. ✓ Accessibility analysis             (P9 item 34, done 2026-04-17)
+20. ✓ Room-from-walls auto-detection     (P9 item 35, done 2026-04-17)
+21. ✓ JSON version migration             (P10 item 37, done 2026-04-17)
+22.   SVG/PDF/PNG renderer completeness  (P10 item 36) ← next
 ```

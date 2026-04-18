@@ -43,12 +43,17 @@ from archit_app.elements.elevator import Elevator, ElevatorDoor
 from archit_app.elements.beam import Beam, BeamSection
 from archit_app.elements.furniture import Furniture, FurnitureCategory
 from archit_app.elements.annotation import TextAnnotation, DimensionLine, SectionMark
+from archit_app.elements.material import Material, MaterialCategory, MaterialLibrary, default_library
 
 from archit_app.building.land import Land, Setbacks, ZoningInfo
 from archit_app.building.site import SiteContext
 from archit_app.building.level import Level
-from archit_app.building.building import Building, BuildingMetadata
+from archit_app.building.building import Building, BuildingMetadata, BuildingStats
 from archit_app.building.grid import StructuralGrid, GridAxis
+
+from archit_app.history import History, HistoryError
+from archit_app.viewport import Viewport
+from archit_app.query import ElementQuery, query
 
 from archit_app.core.registry import register, get, list_registered, get_all
 
@@ -113,6 +118,10 @@ __all__ = [
     "TextAnnotation",
     "DimensionLine",
     "SectionMark",
+    "Material",
+    "MaterialCategory",
+    "MaterialLibrary",
+    "default_library",
     # Building / Land
     "Land",
     "Setbacks",
@@ -121,8 +130,15 @@ __all__ = [
     "Level",
     "Building",
     "BuildingMetadata",
+    "BuildingStats",
     "StructuralGrid",
     "GridAxis",
+    # Application infrastructure
+    "History",
+    "HistoryError",
+    "Viewport",
+    "ElementQuery",
+    "query",
     # Registry
     "register",
     "get",

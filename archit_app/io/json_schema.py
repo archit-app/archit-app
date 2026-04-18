@@ -41,7 +41,8 @@ from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
 from archit_app.geometry.transform import Transform2D
 
-FORMAT_VERSION = "0.1.0"
+FORMAT_VERSION = "0.2.0"
+PREVIOUS_VERSIONS = ("0.1.0",)   # versions we can migrate from
 
 # Known CRS singletons — serialized by name, looked up on deserialize
 _CRS_SINGLETONS: dict[str, CoordinateSystem] = {
@@ -452,13 +453,56 @@ def building_to_dict(building: Building) -> dict[str, Any]:
     }
 
 
+def migrate_json(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Upgrade a JSON dict from any older format version to the current one.
+
+    The function is idempotent: passing current-version data returns it
+    unchanged.  Unknown versions are passed through without modification so
+    that future versions of the library can read files written today.
+
+    Migration chain applied in order:
+      0.1.0 → 0.2.0
+    """
+    version = data.get("_archit_app_version", "0.1.0")
+    if version == "0.1.0":
+        data = _migrate_0_1_to_0_2(data)
+        version = "0.2.0"
+    # Future migrations would be added here as elif branches.
+    return data
+
+
+def _migrate_0_1_to_0_2(data: dict[str, Any]) -> dict[str, Any]:
+    """0.1.0 → 0.2.0: rename 'site' key → 'land'; add missing level arrays."""
+    data = dict(data)  # shallow copy
+    data["_archit_app_version"] = "0.2.0"
+
+    # Rename site → land
+    if "site" in data and "land" not in data:
+        data["land"] = data.pop("site")
+
+    # Ensure every level has the arrays added in 0.2.0
+    new_level_keys = (
+        "staircases", "slabs", "ramps", "beams",
+        "furniture", "text_annotations", "dimensions", "section_marks",
+    )
+    for level in data.get("levels", []):
+        for key in new_level_keys:
+            if key not in level:
+                level[key] = []
+
+    return data
+
+
 def building_from_dict(data: dict[str, Any]) -> Building:
     """
     Reconstruct a Building from a dict (as produced by building_to_dict).
 
-    Reads the ``land`` key (current format).  Falls back to the legacy ``site``
-    key produced by versions prior to this refactor.
+    Automatically migrates older JSON formats to the current schema before
+    deserializing.  Reads the ``land`` key (current format) and falls back to
+    the legacy ``site`` key if present.
     """
+    data = migrate_json(data)
     meta = data.get("metadata", {})
     metadata = BuildingMetadata(
         name=meta.get("name", ""),

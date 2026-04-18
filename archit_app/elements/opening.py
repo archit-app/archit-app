@@ -116,3 +116,62 @@ class Opening(Element):
             sill_height=sill_height,
             **kwargs,
         )
+
+    @classmethod
+    def archway(
+        cls,
+        x: float,
+        y: float,
+        width: float = 1.2,
+        height: float = 2.4,
+        wall_thickness: float = 0.2,
+        **kwargs,
+    ) -> "Opening":
+        """
+        Full-height arched opening (no door leaf, no sill).
+
+        x, y: lower-left corner of the opening in world space.
+        The geometry is a rectangular hole; the arched head is a semantic
+        property expressed via OpeningKind.ARCHWAY.
+        """
+        from archit_app.geometry.crs import WORLD
+
+        geom = Polygon2D.rectangle(x, y, width, wall_thickness, crs=WORLD)
+        return cls(
+            kind=OpeningKind.ARCHWAY,
+            geometry=geom,
+            width=width,
+            height=height,
+            sill_height=0.0,
+            **kwargs,
+        )
+
+    @classmethod
+    def pass_through(
+        cls,
+        x: float,
+        y: float,
+        width: float = 0.9,
+        height: float = 1.0,
+        sill_height: float = 0.85,
+        wall_thickness: float = 0.2,
+        **kwargs,
+    ) -> "Opening":
+        """
+        Counter-height pass-through opening (no door leaf, raised sill).
+
+        x, y: lower-left corner of the rough opening (at floor level).
+        sill_height: height of the bottom of the opening above the floor
+                     (default 0.85 m — standard counter height).
+        """
+        from archit_app.geometry.crs import WORLD
+
+        geom = Polygon2D.rectangle(x, y, width, wall_thickness, crs=WORLD)
+        return cls(
+            kind=OpeningKind.PASS_THROUGH,
+            geometry=geom,
+            width=width,
+            height=height,
+            sill_height=sill_height,
+            **kwargs,
+        )
