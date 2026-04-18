@@ -421,7 +421,7 @@ Users should never have to think about CRS unless they're doing something unusua
 
 ## Implementation Status & Gap Analysis
 
-*Updated 2026-04-17. Reflects what is actually in the codebase vs. what was planned above.*
+*Updated 2026-04-17 (gap analysis revision). Reflects what is actually in the codebase vs. what was planned above.*
 
 ---
 
@@ -445,7 +445,7 @@ Users should never have to think about CRS unless they're doing something unusua
 | `Wall` | Done — straight, arc, Bezier, NURBS geometry; 6 wall types; openings attached |
 | `Room` | Done — general polygon + holes; name, program, area, level index |
 | `Opening` (Door, Window) | Done — with sill height, swing arc, frame |
-| `Opening` (Archway, Pass-through) | Enum variant exists; **no factory or geometry logic** |
+| `Opening` (Archway, Pass-through) | Done — factories added (2026-04-17); **rendered identically to doors — distinct visuals planned (P12)** |
 | `Column` | Done — rectangular and circular factories |
 | `Staircase` | Done — straight factory; rise/run/width/direction; level links; `total_rise`, `slope_angle` |
 | `Slab` | Done — floor/ceiling/roof plate; penetration holes; `rectangular()` factory |
@@ -461,13 +461,13 @@ Users should never have to think about CRS unless they're doing something unusua
 #### I/O — partial
 | Format | Read | Write | Notes |
 |---|---|---|---|
-| JSON | Yes | Yes | Full round-trip, versioned (`"version": "0.2.0"`); migration chain from 0.1.0 |
-| SVG | No | Yes | Rooms, walls, openings, columns, scale bar; **furniture/annotations/dimensions not rendered** |
+| JSON | **Partial** | **Partial** | Round-trip only for walls/rooms/openings/columns — **staircases, slabs, ramps, beams, furniture, annotations, dimensions, section marks, elevators, grid are silently dropped** |
+| SVG | No | Yes | All element types rendered (rooms, walls, openings, columns, beams, ramps, furniture, annotations, dimensions, section marks) |
 | GeoJSON | **No** | Yes | FeatureCollection per level; import not implemented |
-| DXF | Yes | Yes | `ezdxf` required; full round-trip |
-| IFC | **No** | Yes | Write-only IFC 4.x; `ifcopenshell` required |
-| PDF | No | Yes | Write-only; `reportlab>=4` required |
-| PNG / raster | No | Yes | Write-only; Pillow required |
+| DXF | Yes | **Partial** | Export only covers rooms/walls/openings/columns — newer elements not exported |
+| IFC | **No** | **Partial** | Write-only IFC 4.x; exports walls/rooms/openings/columns/slabs/staircases — **ramps, beams, furniture, annotations not exported** |
+| PDF | No | Yes | All element types rendered |
+| PNG / raster | No | Yes | All element types rendered |
 
 #### Structural Grid — done
 `building/grid.py` implements `StructuralGrid` and `GridAxis`:
@@ -780,6 +780,134 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 
 ---
 
+---
+
+#### P11 — JSON / I/O Completeness (Critical)
+
+These are regressions: data is constructed in memory but silently lost on save/load.
+
+38. **JSON schema — missing element serialization** *(CRITICAL)*
+    - `_ser_level` / `_des_level` only round-trip walls, rooms, openings, columns
+    - **Silently dropped on save/load:** staircases, slabs, ramps, beams, furniture, text_annotations, dimensions, section_marks
+    - `building_to_dict` / `building_from_dict` missing: elevators, structural grid
+    - Fix: add `_ser_*` / `_des_*` helpers for each missing type; update both functions
+    - Tests: extend `tests/io/test_json_schema.py` with round-trip tests for every element type
+
+39. **DXF export — missing element types**
+    - `_export_level` only writes rooms, walls, openings, columns
+    - Missing layers: `FP_STAIRS`, `FP_SLABS`, `FP_BEAMS`, `FP_RAMPS`, `FP_FURNITURE`, `FP_ANNOTATIONS`
+    - Fix: add rendering helpers for each type; extend layer definitions
+
+40. **IFC export — missing element types**
+    - Currently exports: walls, rooms, openings, columns, slabs, staircases
+    - Missing: ramps (`IfcRamp`), beams (`IfcBeam`), furniture (`IfcFurnishingElement`), elevators (`IfcTransportElement`)
+    - Fix: add `_add_ramp()`, `_add_beam()`, `_add_furniture()`, `_add_elevator()` to ifc.py
+
+---
+
+#### P12 — Renderer Completeness
+
+41. **SVG/PDF/PNG — Staircase not rendered**
+    - `Staircase` elements are in `level.staircases` but no `_render_staircase()` exists in any renderer
+    - Standard floorplan convention: treads as parallel lines with diagonal direction arrow
+    - Add `_render_staircase()` to all three renderers
+
+42. **SVG/PDF/PNG — Slab not rendered**
+    - `Slab` elements in `level.slabs` are invisible in all export formats
+    - Typically drawn as a thin outline (dashed for ceiling, solid for floor plate)
+    - Add `_render_slab()` to all three renderers
+
+43. **Opening visual distinction — Archway / Pass-through**
+    - `OpeningKind.ARCHWAY` and `PASS_THROUGH` are rendered identically to doors
+    - Archways should show a semicircular arc; pass-throughs should show no swing
+    - Update `_render_opening()` in all three renderers to branch on kind
+
+44. **PDF/PNG — Door swing not rendered**
+    - SVG renderer draws the swing arc for doors that have `.swing`
+    - PDF and PNG renderers skip the swing arc entirely
+    - Fix: add swing arc drawing in `_render_single_opening()` in `pdf.py` and `image.py`
+
+---
+
+#### P13 — Material System Integration
+
+45. **Material linked to element rendering**
+    - `Material` and `MaterialLibrary` exist as a lookup layer
+    - `Wall`, `Slab`, `Beam`, `Column` have a `material: str | None` field (name key)
+    - No renderer looks up the material colour — everything uses fixed palette colours
+    - Add `material_overrides: dict[str, str] | None` parameter to `level_to_svg()` etc.
+    - At render time: if `element.material` is in the override dict, use that hex colour
+
+---
+
+#### P14 — Building / Level Utilities
+
+46. **`Level.duplicate()` / `Building.duplicate_level(index)`**
+    - Multi-storey buildings often repeat the same floor plate
+    - `level.duplicate(new_index, new_elevation)` — deep copy with new UUIDs
+    - `building.duplicate_level(index, new_index, new_elevation)` — convenience wrapper
+    - Tests in `tests/building/test_level_utils.py`
+
+47. **`Building.to_agent_context()`**
+    - `Land.to_agent_context()` exists for passing site context to an AI agent
+    - No equivalent for the full building — agents can't get room programs, areas, or element counts from the building in a structured way
+    - `Building.to_agent_context()` → JSON-serializable dict: metadata, stats, per-level summary (rooms by program, element counts), land context if available
+    - Useful for driving LLM-based design assistants
+
+48. **`Building.validate()` → `ValidationReport`**
+    - Check for common modelling errors: duplicate level indices, rooms with zero area, walls with zero length, overlapping elements (approximate), stair level links pointing to non-existent levels
+    - `ValidationReport` — list of `ValidationIssue(severity, element_id, message)` items
+    - Tests in `tests/building/test_validate.py`
+
+---
+
+#### P15 — Developer Experience & Performance
+
+49. **`Layer` model** (`archit_app/building/layer.py`)
+    - Elements already have a `layer: str` field but there is no `Layer` object
+    - `Layer(name, color_hex, visible=True, locked=False)` — Pydantic model
+    - `Building.layers: dict[str, Layer]` — named layer registry
+    - `Building.add_layer()`, `with_layer()` — fluent builder
+    - Renderers should skip elements whose layer is not visible
+
+50. **Unit conversion utilities** (`archit_app/units.py`)
+    - Architects in North America work in feet/inches; some consultants use millimetres
+    - `to_feet(meters)`, `to_inches(meters)`, `to_mm(meters)`, `from_feet(feet)`, `from_inches(inches)`
+    - `parse_dimension(s)` — parse `"12'-6\""` or `"3.8m"` or `"3800mm"` → float meters
+    - Lightweight, no dependencies
+
+51. **Spatial index for Level** (`Level.spatial_index()`)
+    - When a level has hundreds of elements, spatial queries are O(n)
+    - `Level.spatial_index() → STRtree` (Shapely's R-tree wrapper)
+    - `ElementQuery.within_bbox()` should use this when available
+    - Lazy: computed once, cached, invalidated on element add/remove
+
+52. **Element copy/transform utilities** (`archit_app/elements/transform_utils.py`)
+    - No way to duplicate or mirror an individual element (only level-level duplicate in P14)
+    - `copy_element(element, dx, dy) → Element` — translate to new position, assign new UUID
+    - `mirror_element(element, axis_x=None, axis_y=None) → Element` — reflect across vertical or horizontal axis
+    - `array_element(element, count, dx, dy) → list[Element]` — linear array
+    - All return new elements with new UUIDs; original unchanged
+
+---
+
+#### P16 — I/O Additions
+
+53. **GeoJSON import** (`archit_app/io/geojson.py`)
+    - Currently write-only: `level_to_geojson()` and `building_to_geojson()` exist
+    - Add `level_from_geojson(data)` — reads FeatureCollection back into a Level
+    - Map `geometry.type` + `properties.element_type` → correct element constructor
+    - Tests extending `tests/io/test_geojson.py`
+
+54. **IFC import** (`archit_app/io/ifc.py`)
+    - Currently write-only IFC 4.x
+    - `building_from_ifc(path) → Building` — read IFC via `ifcopenshell`
+    - Read: `IfcWall` → `Wall`, `IfcSpace` → `Room`, `IfcDoor`/`IfcWindow` → `Opening`, `IfcColumn` → `Column`, `IfcSlab` → `Slab`, `IfcStair` → `Staircase`, `IfcBuildingStorey` → `Level`
+    - Geometry extraction via `ifcopenshell.geom` or direct property access
+    - This is the most complex I/O item; treat as a phased effort
+
+---
+
 ### Recommended Build Order
 
 ```
@@ -805,4 +933,22 @@ All P2 items implemented (2026-04-14). See "What Is Implemented → Analysis" ab
 20. ✓ Room-from-walls auto-detection     (P9 item 35, done 2026-04-17)
 21. ✓ JSON version migration             (P10 item 37, done 2026-04-17)
 22. ✓ SVG/PDF/PNG renderer completeness  (P10 item 36, done 2026-04-17)
+
+# --- New items from 2026-04-17 gap analysis ---
+
+23.   JSON schema — full round-trip for all element types  (P11 item 38) ← CRITICAL, do first
+24.   Staircase + Slab rendering in SVG/PDF/PNG            (P12 items 41–42)
+25.   Opening visual distinction (archway, pass-through, door swing)  (P12 items 43–44)
+26.   DXF export — missing element types                   (P11 item 39)
+27.   IFC export — ramps, beams, furniture, elevators      (P11 item 40)
+28.   Level.duplicate() / Building.duplicate_level()       (P14 item 46)
+29.   Building.to_agent_context()                          (P14 item 47)
+30.   Building.validate() → ValidationReport               (P14 item 48)
+31.   Unit conversion utilities                            (P15 item 50)
+32.   Layer model + visibility filtering in renderers      (P15 item 49)
+33.   Element copy/transform utilities                     (P15 item 52)
+34.   Material linked to rendering                         (P13 item 45)
+35.   Spatial index for Level                              (P15 item 51)
+36.   GeoJSON import                                       (P16 item 53)
+37.   IFC import                                           (P16 item 54) ← complex, do last
 ```
