@@ -157,10 +157,22 @@ def _render_rooms(draw, level: Level, vt: _VT, font, font_small) -> None:
             draw.text((cx, cy + lh * 0.5), area_text, fill=_PAL["annotation"], font=font_small, anchor="mm")
 
 
-def _render_walls(draw, level: Level, vt: _VT) -> None:
+def _material_fill_png(element, default: str, material_library) -> str:
+    """Return a material-derived hex color, or *default*."""
+    if material_library is None:
+        return default
+    mat_name = getattr(element, "material", None)
+    if not mat_name:
+        return default
+    mat = material_library.get(mat_name)
+    return mat.color_hex if mat is not None else default
+
+
+def _render_walls(draw, level: Level, vt: _VT, material_library=None) -> None:
     for wall in level.walls:
         pts = _geom_pts(wall.geometry, vt)
-        _draw_polygon(draw, pts, fill=_PAL["wall_fill"], outline=_PAL["wall_stroke"])
+        fill = _material_fill_png(wall, _PAL["wall_fill"], material_library)
+        _draw_polygon(draw, pts, fill=fill, outline=_PAL["wall_stroke"])
         for opening in wall.openings:
             _render_single_opening(draw, opening, vt)
 
@@ -184,10 +196,11 @@ def _render_single_opening(draw, opening, vt: _VT) -> None:
             draw.line(arc_pts, fill=_PAL["door_stroke"], width=max(1, int(vt.s(0.02))))
 
 
-def _render_columns(draw, level: Level, vt: _VT) -> None:
+def _render_columns(draw, level: Level, vt: _VT, material_library=None) -> None:
     for col in level.columns:
         pts = _poly_pts(col.geometry.exterior, vt)
-        _draw_polygon(draw, pts, fill=_PAL["column_fill"], outline=_PAL["column_stroke"])
+        fill = _material_fill_png(col, _PAL["column_fill"], material_library)
+        _draw_polygon(draw, pts, fill=fill, outline=_PAL["column_stroke"])
 
 
 def _render_openings(draw, level: Level, vt: _VT) -> None:
@@ -329,6 +342,7 @@ def level_to_png_bytes(
     margin: int = _MARGIN,
     title: str | None = None,
     dpi: int = 96,
+    material_library=None,
 ) -> bytes:
     """
     Render *level* as a PNG and return the raw bytes.
@@ -385,10 +399,10 @@ def level_to_png_bytes(
     _render_slabs(draw, level, vt)
     _render_ramps(draw, level, vt, font_small)
     _render_staircases(draw, level, vt)
-    _render_walls(draw, level, vt)
+    _render_walls(draw, level, vt, material_library=material_library)
     _render_openings(draw, level, vt)
     _render_beams(draw, level, vt)
-    _render_columns(draw, level, vt)
+    _render_columns(draw, level, vt, material_library=material_library)
     _render_furniture(draw, level, vt, font_small)
     _render_dimensions(draw, level, vt, font_small)
     _render_section_marks(draw, level, vt, font_small)

@@ -376,3 +376,71 @@ class TestDxfRoundTrip:
         doc = ezdxf.readfile(path)
         layer_names = {lyr.dxf.name for lyr in doc.layers}
         assert "FP_SECTION_MARKS" in layer_names
+
+    # ------------------------------------------------------------------
+    # New element type round-trips (stairs/slabs/beams/ramps/furniture)
+    # ------------------------------------------------------------------
+
+    def test_staircase_roundtrip(self, tmp_path):
+        import math
+        from archit_app import Staircase
+        stair = Staircase.straight(x=0, y=0, width=1.2, rise_count=10,
+                                    rise_height=0.175, run_depth=0.28,
+                                    bottom_level_index=0, top_level_index=1)
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_staircase(stair)
+        path = str(tmp_path / "stairs.dxf")
+        save_level_dxf(level, path)
+        restored = level_from_dxf(path)
+        assert len(restored.staircases) == 1
+        assert restored.staircases[0].rise_count == 10
+
+    def test_slab_roundtrip(self, tmp_path):
+        from archit_app import Slab
+        slab = Slab.rectangular(x=0, y=0, width=6, depth=5, thickness=0.2, elevation=0.0)
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_slab(slab)
+        path = str(tmp_path / "slab.dxf")
+        save_level_dxf(level, path)
+        restored = level_from_dxf(path)
+        assert len(restored.slabs) == 1
+        assert restored.slabs[0].thickness == pytest.approx(0.2)
+
+    def test_beam_roundtrip(self, tmp_path):
+        from archit_app import Beam
+        beam = Beam.straight(x1=0, y1=0, x2=6, y2=0, width=0.3, depth=0.5, elevation=3.0)
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_beam(beam)
+        path = str(tmp_path / "beam.dxf")
+        save_level_dxf(level, path)
+        restored = level_from_dxf(path)
+        assert len(restored.beams) == 1
+
+    def test_ramp_roundtrip(self, tmp_path):
+        import math
+        from archit_app import Ramp
+        ramp = Ramp.straight(x=0, y=0, width=1.5, length=3.6,
+                              slope_angle=math.atan(1 / 12))
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_ramp(ramp)
+        path = str(tmp_path / "ramp.dxf")
+        save_level_dxf(level, path)
+        restored = level_from_dxf(path)
+        assert len(restored.ramps) == 1
+        assert restored.ramps[0].width == pytest.approx(1.5, rel=1e-2)
+
+    def test_furniture_roundtrip(self, tmp_path):
+        from archit_app import Furniture
+        furn = Furniture.sofa(x=1, y=1)
+        level = Level(index=0, elevation=0.0, floor_height=3.0).add_furniture(furn)
+        path = str(tmp_path / "furn.dxf")
+        save_level_dxf(level, path)
+        restored = level_from_dxf(path)
+        assert len(restored.furniture) == 1
+
+    def test_new_element_layers_defined(self, tmp_path):
+        """level_to_dxf must define FP_STAIRS, FP_SLABS, FP_BEAMS, FP_RAMPS, FP_FURNITURE."""
+        import ezdxf
+        level = _make_level()
+        path = str(tmp_path / "layers.dxf")
+        save_level_dxf(level, path)
+        doc = ezdxf.readfile(path)
+        layer_names = {lyr.dxf.name for lyr in doc.layers}
+        for expected in ("FP_STAIRS", "FP_SLABS", "FP_BEAMS", "FP_RAMPS", "FP_FURNITURE"):
+            assert expected in layer_names, f"Missing layer: {expected}"

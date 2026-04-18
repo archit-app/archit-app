@@ -5,6 +5,8 @@ Every analysis, I/O, and rendering module should pass against all of these
 fixtures before being merged.
 """
 
+import math
+
 import pytest
 
 from archit_app import (
@@ -18,9 +20,19 @@ from archit_app import (
     Point2D,
     Polygon2D,
     Room,
+    Staircase,
+    Slab,
+    SlabType,
+    Ramp,
+    Beam,
+    Furniture,
+    TextAnnotation,
+    DimensionLine,
+    SectionMark,
     Wall,
     WallType,
 )
+from archit_app.elements.elevator import Elevator
 
 
 @pytest.fixture
@@ -102,6 +114,70 @@ def single_level_building(simple_square_room: Room, simple_wall: Wall) -> Buildi
     level = level.add_room(simple_square_room)
     level = level.add_wall(simple_wall)
     return Building().add_level(level)
+
+
+@pytest.fixture
+def simple_staircase() -> Staircase:
+    """12-riser straight staircase."""
+    return Staircase.straight(
+        x=0, y=0, width=1.2, rise_count=12,
+        rise_height=0.175, run_depth=0.28,
+        bottom_level_index=0, top_level_index=1,
+    )
+
+
+@pytest.fixture
+def simple_slab() -> Slab:
+    """4 × 4 m floor slab."""
+    return Slab.rectangular(x=0, y=0, width=4, depth=4, thickness=0.2, elevation=0.0)
+
+
+@pytest.fixture
+def simple_ramp() -> Ramp:
+    """1.5 m wide accessible ramp (1:12 slope)."""
+    return Ramp.straight(x=0, y=0, width=1.5, length=3.6, slope_angle=math.atan(1 / 12))
+
+
+@pytest.fixture
+def simple_beam() -> Beam:
+    """5 m structural beam."""
+    return Beam.straight(x1=0, y1=0, x2=5, y2=0, width=0.3, depth=0.5, elevation=3.0)
+
+
+@pytest.fixture
+def simple_furniture() -> Furniture:
+    """Sofa furniture item."""
+    return Furniture.sofa(x=1, y=1)
+
+
+@pytest.fixture
+def simple_text_annotation() -> TextAnnotation:
+    """Text label at origin."""
+    return TextAnnotation.note(
+        text="Test note",
+        position=Point2D(x=2.0, y=2.0, crs=WORLD),
+    )
+
+
+@pytest.fixture
+def simple_dimension() -> DimensionLine:
+    """Horizontal 4 m dimension line."""
+    return DimensionLine.horizontal(
+        x1=0.0, x2=4.0, y=5.0, crs=WORLD, offset=0.5
+    )
+
+
+@pytest.fixture
+def simple_section_mark() -> SectionMark:
+    """Horizontal section mark."""
+    return SectionMark.horizontal(x1=0.0, x2=5.0, y=3.0, crs=WORLD, tag="A")
+
+
+@pytest.fixture
+def simple_elevator() -> Elevator:
+    """1.1 × 1.4 m elevator."""
+    return Elevator.rectangular(x=8, y=0, cab_width=1.1, cab_depth=1.4,
+                                 bottom_level_index=0, top_level_index=2)
 
 
 @pytest.fixture

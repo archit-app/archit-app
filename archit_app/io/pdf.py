@@ -193,10 +193,27 @@ def _render_rooms(c, level: Level, vt: _VT, font_size: float) -> None:
             c.drawCentredString(cx, cy - lh * 0.3, area_text)
 
 
-def _render_walls(c, level: Level, vt: _VT) -> None:
+def _hex_to_rgb(hex_color: str) -> tuple[float, float, float]:
+    h = hex_color.lstrip("#")
+    return int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
+
+
+def _material_fill(element, default: tuple, material_library) -> tuple:
+    """Return a material-derived fill color tuple, or *default*."""
+    if material_library is None:
+        return default
+    mat_name = getattr(element, "material", None)
+    if not mat_name:
+        return default
+    mat = material_library.get(mat_name)
+    return _hex_to_rgb(mat.color_hex) if mat is not None else default
+
+
+def _render_walls(c, level: Level, vt: _VT, material_library=None) -> None:
     for wall in level.walls:
         pts = _geom_pts(wall.geometry, vt)
-        _draw_polygon(c, pts, _PAL["wall_fill"], _PAL["wall_stroke"], 0.3)
+        fill = _material_fill(wall, _PAL["wall_fill"], material_library)
+        _draw_polygon(c, pts, fill, _PAL["wall_stroke"], 0.3)
         for opening in wall.openings:
             _render_single_opening(c, opening, vt)
 
@@ -224,10 +241,11 @@ def _render_single_opening(c, opening, vt: _VT) -> None:
                 c.setDash()
 
 
-def _render_columns(c, level: Level, vt: _VT) -> None:
+def _render_columns(c, level: Level, vt: _VT, material_library=None) -> None:
     for col in level.columns:
         pts = [vt.pt(p) for p in col.geometry.exterior]
-        _draw_polygon(c, pts, _PAL["column_fill"], _PAL["column_stroke"], 0.4)
+        fill = _material_fill(col, _PAL["column_fill"], material_library)
+        _draw_polygon(c, pts, fill, _PAL["column_stroke"], 0.4)
 
 
 def _render_openings(c, level: Level, vt: _VT) -> None:
@@ -431,6 +449,7 @@ def _draw_level_page(
     page_h: float,
     margin: float,
     title: str,
+    material_library=None,
 ) -> None:
     _render_background(c, page_w, page_h)
 
@@ -448,10 +467,10 @@ def _draw_level_page(
     _render_slabs(c, level, vt)
     _render_ramps(c, level, vt)
     _render_staircases(c, level, vt)
-    _render_walls(c, level, vt)
+    _render_walls(c, level, vt, material_library=material_library)
     _render_openings(c, level, vt)
     _render_beams(c, level, vt)
-    _render_columns(c, level, vt)
+    _render_columns(c, level, vt, material_library=material_library)
     _render_furniture(c, level, vt, font_size)
     _render_dimensions(c, level, vt, font_size)
     _render_section_marks(c, level, vt, font_size)
@@ -471,6 +490,7 @@ def level_to_pdf_bytes(
     margin: float = _MARGIN_PT,
     title: str | None = None,
     landscape: bool | None = None,
+    material_library=None,
 ) -> bytes:
     """
     Render *level* as a single-page PDF and return raw bytes.
@@ -518,7 +538,7 @@ def level_to_pdf_bytes(
 
     buf = io.BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=(pw, ph))
-    _draw_level_page(c, level, pw, ph, margin, title)
+    _draw_level_page(c, level, pw, ph, margin, title, material_library=material_library)
     c.save()
     return buf.getvalue()
 

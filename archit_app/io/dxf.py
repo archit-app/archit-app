@@ -44,9 +44,14 @@ from typing import Sequence
 
 from archit_app.building.building import Building, BuildingMetadata
 from archit_app.building.level import Level
+from archit_app.elements.beam import Beam
 from archit_app.elements.column import Column
+from archit_app.elements.furniture import Furniture, FurnitureCategory
 from archit_app.elements.opening import Opening, OpeningKind
+from archit_app.elements.ramp import Ramp
 from archit_app.elements.room import Room
+from archit_app.elements.slab import Slab, SlabType
+from archit_app.elements.staircase import Staircase
 from archit_app.elements.wall import Wall, WallType
 from archit_app.geometry.crs import WORLD
 from archit_app.geometry.point import Point2D
@@ -370,18 +375,33 @@ _SUFFIX_ROOMS    = "FP_ROOMS"
 _SUFFIX_WALLS    = "FP_WALLS"
 _SUFFIX_OPENINGS = "FP_OPENINGS"
 _SUFFIX_COLUMNS  = "FP_COLUMNS"
+_SUFFIX_STAIRS   = "FP_STAIRS"
+_SUFFIX_SLABS    = "FP_SLABS"
+_SUFFIX_BEAMS    = "FP_BEAMS"
+_SUFFIX_RAMPS    = "FP_RAMPS"
+_SUFFIX_FURNITURE = "FP_FURNITURE"
 
 # Canonical element-type keys
-_TYPE_ROOMS    = "rooms"
-_TYPE_WALLS    = "walls"
-_TYPE_OPENINGS = "openings"
-_TYPE_COLUMNS  = "columns"
+_TYPE_ROOMS      = "rooms"
+_TYPE_WALLS      = "walls"
+_TYPE_OPENINGS   = "openings"
+_TYPE_COLUMNS    = "columns"
+_TYPE_STAIRS     = "staircases"
+_TYPE_SLABS      = "slabs"
+_TYPE_BEAMS      = "beams"
+_TYPE_RAMPS      = "ramps"
+_TYPE_FURNITURE  = "furniture"
 
 _SUFFIX_TO_TYPE: dict[str, str] = {
-    _SUFFIX_ROOMS:    _TYPE_ROOMS,
-    _SUFFIX_WALLS:    _TYPE_WALLS,
-    _SUFFIX_OPENINGS: _TYPE_OPENINGS,
-    _SUFFIX_COLUMNS:  _TYPE_COLUMNS,
+    _SUFFIX_ROOMS:     _TYPE_ROOMS,
+    _SUFFIX_WALLS:     _TYPE_WALLS,
+    _SUFFIX_OPENINGS:  _TYPE_OPENINGS,
+    _SUFFIX_COLUMNS:   _TYPE_COLUMNS,
+    _SUFFIX_STAIRS:    _TYPE_STAIRS,
+    _SUFFIX_SLABS:     _TYPE_SLABS,
+    _SUFFIX_BEAMS:     _TYPE_BEAMS,
+    _SUFFIX_RAMPS:     _TYPE_RAMPS,
+    _SUFFIX_FURNITURE: _TYPE_FURNITURE,
 }
 
 # Regex: optional level prefix "L{dd}_" followed by FP_* suffix
@@ -479,6 +499,62 @@ def _polygons_to_level(
             sill_height=0.0,
         )
         level = level.add_opening(opening)
+
+    for poly in polys_by_type.get(_TYPE_STAIRS, []):
+        bb = poly.bounding_box()
+        width = min(bb.width, bb.height)
+        stair = Staircase(
+            boundary=poly,
+            rise_count=10,
+            rise_height=0.175,
+            run_depth=0.28,
+            width=max(width, 0.9),
+            bottom_level_index=level_index,
+            top_level_index=level_index + 1,
+        )
+        level = level.add_staircase(stair)
+
+    for poly in polys_by_type.get(_TYPE_SLABS, []):
+        slab = Slab(
+            boundary=poly,
+            thickness=0.2,
+            elevation=level_elevation,
+        )
+        level = level.add_slab(slab)
+
+    for poly in polys_by_type.get(_TYPE_BEAMS, []):
+        bb = poly.bounding_box()
+        w = min(bb.width, bb.height)
+        beam = Beam(
+            geometry=poly,
+            width=max(w, 0.1),
+            depth=0.3,
+            elevation=level_floor_height,
+        )
+        level = level.add_beam(beam)
+
+    for poly in polys_by_type.get(_TYPE_RAMPS, []):
+        bb = poly.bounding_box()
+        width = min(bb.width, bb.height)
+        ramp = Ramp(
+            boundary=poly,
+            width=max(width, 0.9),
+            slope_angle=math.atan(1 / 12),  # 1:12 accessible slope
+            bottom_level_index=level_index,
+            top_level_index=level_index + 1,
+        )
+        level = level.add_ramp(ramp)
+
+    for poly in polys_by_type.get(_TYPE_FURNITURE, []):
+        bb = poly.bounding_box()
+        furn = Furniture(
+            footprint=poly,
+            category=FurnitureCategory.CUSTOM,
+            width=bb.width,
+            depth=bb.height,
+            height=0.9,
+        )
+        level = level.add_furniture(furn)
 
     return level
 
