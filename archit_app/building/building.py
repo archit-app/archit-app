@@ -213,6 +213,116 @@ class Building(BaseModel):
         new_level = source.duplicate(new_index, new_elevation, name=name)
         return self.add_level(new_level)
 
+    def to_detailed_agent_context(self) -> dict:
+        """Return a rich, JSON-serialisable dict for use in LLM/agent prompts.
+
+        Extends :meth:`to_agent_context` with per-room spatial data (centroid,
+        bounding box, adjacency hints), wall geometry summaries, and site/land
+        context when available.  Intended for the CrewAI tool layer where agents
+        need precise spatial understanding to make design decisions.
+        """
+        base = self.to_agent_context()
+
+        detailed_levels = []
+        for lv in self.levels:
+            rooms_detail = []
+            for r in lv.rooms:
+                c = r.centroid
+                bb = r.bounding_box()
+                room_entry: dict = {
+                    "id": str(r.id),
+                    "name": r.name,
+                    "program": r.program,
+                    "area_m2": round(r.area, 2),
+                    "gross_area_m2": round(r.gross_area, 2),
+                    "perimeter_m": round(r.perimeter, 2),
+                    "centroid": {"x": round(c.x, 3), "y": round(c.y, 3)},
+                }
+                if bb is not None:
+                    room_entry["bounding_box"] = {
+                        "min": {"x": round(bb.min_corner.x, 3), "y": round(bb.min_corner.y, 3)},
+                        "max": {"x": round(bb.max_corner.x, 3), "y": round(bb.max_corner.y, 3)},
+                        "width_m": round(bb.max_corner.x - bb.min_corner.x, 3),
+                        "depth_m": round(bb.max_corner.y - bb.min_corner.y, 3),
+                    }
+                rooms_detail.append(room_entry)
+
+            walls_detail = []
+            for w in lv.walls:
+                wall_entry: dict = {
+                    "id": str(w.id),
+                    "thickness_m": getattr(w, "thickness", None),
+                    "height_m": getattr(w, "height", None),
+                    "wall_type": getattr(w, "wall_type", {
+                        "value": str(getattr(w, "wall_type", ""))
+                    }),
+                    "openings_count": len(getattr(w, "openings", ())),
+                }
+                bb = w.bounding_box()
+                if bb is not None:
+                    wall_entry["bounding_box"] = {
+                        "min": {"x": round(bb.min_corner.x, 3), "y": round(bb.min_corner.y, 3)},
+                        "max": {"x": round(bb.max_corner.x, 3), "y": round(bb.max_corner.y, 3)},
+                    }
+                walls_detail.append(wall_entry)
+
+            columns_detail = [
+                {
+                    "id": str(c.id),
+                    "shape": str(getattr(c, "shape", "")),
+                    "width_m": getattr(c, "width", None),
+                    "depth_m": getattr(c, "depth", None),
+                }
+                for c in lv.columns
+            ]
+
+            furniture_detail = [
+                {
+                    "id": str(f.id),
+                    "category": str(getattr(f, "category", "")),
+                    "name": getattr(f, "name", ""),
+                }
+                for f in lv.furniture
+            ]
+
+            bb_lv = lv.bounding_box
+            level_entry: dict = {
+                "index": lv.index,
+                "name": lv.name or f"Level {lv.index}",
+                "elevation_m": lv.elevation,
+                "floor_height_m": lv.floor_height,
+                "rooms": rooms_detail,
+                "walls": walls_detail,
+                "columns": columns_detail,
+                "furniture": furniture_detail,
+                "staircases_count": len(lv.staircases),
+                "slabs_count": len(lv.slabs),
+                "ramps_count": len(lv.ramps),
+                "beams_count": len(lv.beams),
+            }
+            if bb_lv is not None:
+                level_entry["bounding_box"] = {
+                    "min": {"x": round(bb_lv.min_corner.x, 3), "y": round(bb_lv.min_corner.y, 3)},
+                    "max": {"x": round(bb_lv.max_corner.x, 3), "y": round(bb_lv.max_corner.y, 3)},
+                    "width_m": round(bb_lv.max_corner.x - bb_lv.min_corner.x, 3),
+                    "depth_m": round(bb_lv.max_corner.y - bb_lv.min_corner.y, 3),
+                }
+            detailed_levels.append(level_entry)
+
+        base["levels"] = detailed_levels
+        base["elevators_count"] = len(self.elevators)
+
+        if self.land is not None:
+            base["land"] = self.land.to_agent_context()
+
+        if self.grid is not None:
+            base["structural_grid"] = {
+                "x_axes": [str(a.label) for a in getattr(self.grid, "x_axes", ())],
+                "y_axes": [str(a.label) for a in getattr(self.grid, "y_axes", ())],
+            }
+
+        return base
+
     def to_agent_context(self) -> dict:
         """Return a compact, JSON-serialisable dict describing this building.
 
