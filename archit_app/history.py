@@ -41,7 +41,7 @@ class History(BaseModel):
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
-    snapshots: tuple  # tuple[Building, ...]
+    snapshots: tuple["Building", ...]
     cursor: int
     max_snapshots: int = 100
 

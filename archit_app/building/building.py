@@ -114,7 +114,7 @@ class Building(BaseModel):
     def add_elevator(self, elevator: Elevator) -> "Building":
         return self.model_copy(update={"elevators": (*self.elevators, elevator)})
 
-    def remove_elevator(self, elevator_id) -> "Building":
+    def remove_elevator(self, elevator_id: UUID) -> "Building":
         return self.model_copy(
             update={"elevators": tuple(e for e in self.elevators if e.id != elevator_id)}
         )
