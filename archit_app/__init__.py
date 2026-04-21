@@ -71,7 +71,7 @@ from archit_app.elements.transform_utils import (
     copy_element, mirror_element, array_element,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.3.3"
 
 __all__ = [
     # Geometry
