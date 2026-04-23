@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../logo/archit-app-dark.svg">
-  <img src="../logo/archit-app-light.svg" alt="archit-app" width="320">
+  <img src="../logo/archit-app-light.svg" alt="archit-app" width="300">
 </picture>
 
 # archit_app Documentation
@@ -32,7 +32,7 @@ Welcome to the `archit_app` library documentation.
 
 | | |
 |---|---|
-| Version | 0.2.0 |
+| Version | 0.3.3 |
 | Python | 3.11+ |
 | License | MIT |
 | Source | [github.com/archit-app/archit-app](https://github.com/archit-app/archit-app) |

@@ -1,34 +1,19 @@
-<svg id="idark" viewBox="0 0 180 180" width="150" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <pattern id="gi" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M8 0H0V8" fill="none" stroke="#3B82F6" stroke-width="0.5"/></pattern>
-          <clipPath id="ci">
-            <polygon points="33,108 77,108 90,158 20,158"/>
-            <polygon points="103,108 147,108 160,158 90,158"/>
-          </clipPath>
-        </defs>
-        <rect width="180" height="180" rx="40" fill="#0C1018"/>
-        <polygon points="33,108 77,108 90,158 20,158" fill="url(#gi)" clip-path="url(#ci)" opacity="0.5"/>
-        <polygon points="103,108 147,108 160,158 90,158" fill="url(#gi)" clip-path="url(#ci)" opacity="0.5"/>
-        <line x1="55" y1="18" x2="20" y2="158" stroke="#E8EDF5" stroke-width="4" stroke-linecap="round"/>
-        <line x1="55" y1="18" x2="90" y2="158" stroke="#E8EDF5" stroke-width="4" stroke-linecap="round"/>
-        <line x1="125" y1="18" x2="90" y2="158" stroke="#E8EDF5" stroke-width="4" stroke-linecap="round"/>
-        <line x1="125" y1="18" x2="160" y2="158" stroke="#E8EDF5" stroke-width="4" stroke-linecap="round"/>
-        <line x1="20" y1="158" x2="160" y2="158" stroke="#E8EDF5" stroke-width="3.2" stroke-linecap="round"/>
-        <line x1="33" y1="108" x2="77" y2="108" stroke="#3B82F6" stroke-width="3.2" stroke-linecap="round"/>
-        <line x1="103" y1="108" x2="147" y2="108" stroke="#3B82F6" stroke-width="3.2" stroke-linecap="round"/>
-        <line x1="77" y1="108" x2="103" y2="108" stroke="#3B82F6" stroke-width="1" stroke-dasharray="3,3.5" opacity="0.5"/>
-        <line x1="55" y1="108" x2="55" y2="158" stroke="#3B82F6" stroke-width="1.6" opacity="0.65"/>
-        <line x1="125" y1="108" x2="125" y2="158" stroke="#3B82F6" stroke-width="1.6" opacity="0.65"/>
-        <line x1="23" y1="133" x2="52" y2="133" stroke="#3B82F6" stroke-width="0.9" opacity="0.5"/>
-        <line x1="58" y1="133" x2="87" y2="133" stroke="#3B82F6" stroke-width="0.9" opacity="0.5"/>
-        <line x1="93" y1="133" x2="122" y2="133" stroke="#3B82F6" stroke-width="0.9" opacity="0.5"/>
-        <line x1="128" y1="133" x2="157" y2="133" stroke="#3B82F6" stroke-width="0.9" opacity="0.5"/>
-        <line x1="33" y1="101" x2="33" y2="115" stroke="#3B82F6" stroke-width="1.5" opacity="0.55"/>
-        <line x1="77" y1="101" x2="77" y2="115" stroke="#3B82F6" stroke-width="1.5" opacity="0.55"/>
-        <line x1="103" y1="101" x2="103" y2="115" stroke="#3B82F6" stroke-width="1.5" opacity="0.55"/>
-        <line x1="147" y1="101" x2="147" y2="115" stroke="#3B82F6" stroke-width="1.5" opacity="0.55"/>
-        <circle cx="55" cy="18" r="5.5" fill="#F59E0B"/>
-        <circle cx="55" cy="18" r="11" fill="none" stroke="#F59E0B" stroke-width="1.1" opacity="0.28"/>
-        <circle cx="125" cy="18" r="5.5" fill="#F59E0B"/>
-        <circle cx="125" cy="18" r="11" fill="none" stroke="#F59E0B" stroke-width="1.1" opacity="0.28"/>
-      </svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -60 120 120">
+  <title>archit.app icon — dark</title>
+  <desc>Plan-view A with thick Vellum walls and solid Datum reference handles. Transparent background; intended for dark surfaces.</desc>
+
+  <!-- Walls — Vellum -->
+  <g fill="none" stroke="#E8EDF5" stroke-width="10" stroke-linecap="butt">
+    <line x1="0" y1="-45" x2="-38" y2="45"/>
+    <line x1="0" y1="-45" x2="38" y2="45"/>
+    <line x1="-17" y1="0" x2="-6" y2="0"/>
+    <line x1="6" y1="0" x2="17" y2="0"/>
+  </g>
+
+  <!-- Reference handles — Datum -->
+  <g fill="#F59E0B">
+    <rect x="-5" y="-50" width="10" height="10"/>
+    <rect x="-43" y="40" width="10" height="10"/>
+    <rect x="33" y="40" width="10" height="10"/>
+  </g>
+</svg>
