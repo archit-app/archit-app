@@ -125,6 +125,77 @@ class Level(BaseModel):
 
         return STRtree(geometries), elements
 
+    def walls_for_room(
+        self,
+        room_id: UUID,
+        tolerance_m: float = 0.35,
+    ) -> list[Wall]:
+        """Return the walls that form (or closely border) a room's boundary.
+
+        Uses a Shapely buffered-intersection test: a wall is considered part of
+        a room's boundary when its bounding box intersects the room polygon
+        expanded by *tolerance_m* on all sides.  This handles walls that sit
+        slightly outside the nominal room boundary due to wall thickness.
+
+        Parameters
+        ----------
+        room_id:
+            UUID of the room to query.
+        tolerance_m:
+            Expansion distance in metres applied to the room polygon before
+            testing intersection (default 0.35 m — slightly larger than a
+            standard 200 mm wall so both faces are captured).
+
+        Returns
+        -------
+        list[Wall]
+            Walls whose geometry intersects the expanded room boundary,
+            sorted by wall type (exterior first) then by length descending.
+
+        Raises
+        ------
+        KeyError
+            If no room with *room_id* exists on this level.
+        ImportError
+            If Shapely is not installed.
+        """
+        try:
+            from shapely.geometry import box as shp_box
+            from shapely.geometry import Polygon as ShpPolygon
+        except ImportError:
+            raise ImportError(
+                "Shapely is required for walls_for_room. "
+                "Install it with: pip install shapely"
+            )
+
+        room = next((r for r in self.rooms if r.id == room_id), None)
+        if room is None:
+            raise KeyError(f"No room with id {room_id} on level {self.index}.")
+
+        # Build Shapely polygon for the room boundary (expanded by tolerance)
+        pts = room.boundary.exterior
+        shp_room = ShpPolygon([(p.x, p.y) for p in pts]).buffer(tolerance_m)
+
+        result: list[Wall] = []
+        for wall in self.walls:
+            bb = wall.bounding_box()
+            if bb is None:
+                continue
+            wall_box = shp_box(
+                bb.min_corner.x, bb.min_corner.y,
+                bb.max_corner.x, bb.max_corner.y,
+            )
+            if shp_room.intersects(wall_box):
+                result.append(wall)
+
+        # Sort: exterior walls first, then by length descending
+        from archit_app.elements.wall import WallType
+        def _sort_key(w: Wall):
+            order = {WallType.EXTERIOR: 0, WallType.CURTAIN: 1}.get(w.wall_type, 2)
+            return (order, -w.length)
+
+        return sorted(result, key=_sort_key)
+
     @property
     def bounding_box(self) -> BoundingBox2D | None:
         boxes = []
@@ -148,8 +219,40 @@ class Level(BaseModel):
     def add_wall(self, wall: Wall) -> "Level":
         return self.model_copy(update={"walls": (*self.walls, wall)})
 
+    def add_walls(self, walls) -> "Level":
+        """Add multiple walls in a single operation, returning one new Level.
+
+        Parameters
+        ----------
+        walls:
+            Any iterable of :class:`~archit_app.elements.wall.Wall` objects.
+
+        Returns
+        -------
+        Level
+            New Level with all *walls* appended in the order supplied.
+        """
+        new_walls = tuple(walls)
+        return self.model_copy(update={"walls": (*self.walls, *new_walls)})
+
     def add_room(self, room: Room) -> "Level":
         return self.model_copy(update={"rooms": (*self.rooms, room)})
+
+    def add_rooms(self, rooms) -> "Level":
+        """Add multiple rooms in a single operation, returning one new Level.
+
+        Parameters
+        ----------
+        rooms:
+            Any iterable of :class:`~archit_app.elements.room.Room` objects.
+
+        Returns
+        -------
+        Level
+            New Level with all *rooms* appended in the order supplied.
+        """
+        new_rooms = tuple(rooms)
+        return self.model_copy(update={"rooms": (*self.rooms, *new_rooms)})
 
     def add_opening(self, opening: Opening) -> "Level":
         return self.model_copy(update={"openings": (*self.openings, opening)})

@@ -213,18 +213,45 @@ class Building(BaseModel):
         new_level = source.duplicate(new_index, new_elevation, name=name)
         return self.add_level(new_level)
 
-    def to_detailed_agent_context(self) -> dict:
+    def to_detailed_agent_context(
+        self,
+        level_index: int | None = None,
+        include_walls: bool = True,
+        include_furniture: bool = True,
+        include_columns: bool = True,
+    ) -> dict:
         """Return a rich, JSON-serialisable dict for use in LLM/agent prompts.
 
         Extends :meth:`to_agent_context` with per-room spatial data (centroid,
-        bounding box, adjacency hints), wall geometry summaries, and site/land
-        context when available.  Intended for the CrewAI tool layer where agents
-        need precise spatial understanding to make design decisions.
+        bounding box), full wall geometry (start/end points, facing direction),
+        and site/land context when available.
+
+        Parameters
+        ----------
+        level_index:
+            When provided, only the data for that floor is returned under
+            ``"levels"``.  Useful for agents focused on a single storey —
+            avoids returning the full building context and wasting tokens.
+        include_walls:
+            Set to ``False`` to omit the ``"walls"`` array from each level
+            entry (e.g. for the Space Programmer who only needs room areas).
+        include_furniture:
+            Set to ``False`` to omit the ``"furniture"`` array from each level
+            entry (e.g. for structural or compliance agents).
+        include_columns:
+            Set to ``False`` to omit the ``"columns"`` array from each level
+            entry (e.g. for interior design agents).
         """
         base = self.to_agent_context()
 
+        levels_to_process = (
+            [lv for lv in self.levels if lv.index == level_index]
+            if level_index is not None
+            else list(self.levels)
+        )
+
         detailed_levels = []
-        for lv in self.levels:
+        for lv in levels_to_process:
             rooms_detail = []
             for r in lv.rooms:
                 c = r.centroid
@@ -247,59 +274,79 @@ class Building(BaseModel):
                     }
                 rooms_detail.append(room_entry)
 
-            walls_detail = []
-            for w in lv.walls:
-                wall_entry: dict = {
-                    "id": str(w.id),
-                    "thickness_m": getattr(w, "thickness", None),
-                    "height_m": getattr(w, "height", None),
-                    "wall_type": getattr(w, "wall_type", {
-                        "value": str(getattr(w, "wall_type", ""))
-                    }),
-                    "openings_count": len(getattr(w, "openings", ())),
-                }
-                bb = w.bounding_box()
-                if bb is not None:
-                    wall_entry["bounding_box"] = {
-                        "min": {"x": round(bb.min_corner.x, 3), "y": round(bb.min_corner.y, 3)},
-                        "max": {"x": round(bb.max_corner.x, 3), "y": round(bb.max_corner.y, 3)},
-                    }
-                walls_detail.append(wall_entry)
-
-            columns_detail = [
-                {
-                    "id": str(c.id),
-                    "shape": str(getattr(c, "shape", "")),
-                    "width_m": getattr(c, "width", None),
-                    "depth_m": getattr(c, "depth", None),
-                }
-                for c in lv.columns
-            ]
-
-            furniture_detail = [
-                {
-                    "id": str(f.id),
-                    "category": str(getattr(f, "category", "")),
-                    "name": getattr(f, "name", ""),
-                }
-                for f in lv.furniture
-            ]
-
-            bb_lv = lv.bounding_box
             level_entry: dict = {
                 "index": lv.index,
                 "name": lv.name or f"Level {lv.index}",
                 "elevation_m": lv.elevation,
                 "floor_height_m": lv.floor_height,
                 "rooms": rooms_detail,
-                "walls": walls_detail,
-                "columns": columns_detail,
-                "furniture": furniture_detail,
                 "staircases_count": len(lv.staircases),
                 "slabs_count": len(lv.slabs),
                 "ramps_count": len(lv.ramps),
                 "beams_count": len(lv.beams),
             }
+
+            if include_walls:
+                walls_detail = []
+                for w in lv.walls:
+                    wt = getattr(w, "wall_type", None)
+                    wall_entry: dict = {
+                        "id": str(w.id),
+                        "wall_type": wt.value if hasattr(wt, "value") else str(wt),
+                        "thickness_m": getattr(w, "thickness", None),
+                        "height_m": getattr(w, "height", None),
+                        "length_m": round(w.length, 3),
+                        "openings_count": len(getattr(w, "openings", ())),
+                        "facing": w.facing_direction(),
+                    }
+                    sp = w.start_point
+                    ep = w.end_point
+                    if sp is not None:
+                        wall_entry["start"] = {"x": sp[0], "y": sp[1]}
+                    if ep is not None:
+                        wall_entry["end"] = {"x": ep[0], "y": ep[1]}
+                    bb = w.bounding_box()
+                    if bb is not None:
+                        wall_entry["bounding_box"] = {
+                            "min": {"x": round(bb.min_corner.x, 3), "y": round(bb.min_corner.y, 3)},
+                            "max": {"x": round(bb.max_corner.x, 3), "y": round(bb.max_corner.y, 3)},
+                        }
+                    if w.openings:
+                        wall_entry["openings"] = [
+                            {
+                                "id": str(o.id),
+                                "kind": o.kind.value if hasattr(o.kind, "value") else str(o.kind),
+                                "width_m": o.width,
+                                "height_m": o.height,
+                                "position_along_wall": o.position_along_wall,
+                            }
+                            for o in w.openings
+                        ]
+                    walls_detail.append(wall_entry)
+                level_entry["walls"] = walls_detail
+
+            if include_columns:
+                level_entry["columns"] = [
+                    {
+                        "id": str(c.id),
+                        "shape": str(getattr(c, "shape", "")),
+                        "width_m": getattr(c, "width", None),
+                        "depth_m": getattr(c, "depth", None),
+                    }
+                    for c in lv.columns
+                ]
+
+            if include_furniture:
+                level_entry["furniture"] = [
+                    {
+                        "id": str(f.id),
+                        "category": str(getattr(f, "category", "")),
+                        "name": getattr(f, "name", ""),
+                    }
+                    for f in lv.furniture
+                ]
+
+            bb_lv = lv.bounding_box
             if bb_lv is not None:
                 level_entry["bounding_box"] = {
                     "min": {"x": round(bb_lv.min_corner.x, 3), "y": round(bb_lv.min_corner.y, 3)},

@@ -76,6 +76,77 @@ class Wall(Element):
         # For curve-based walls, use the curve length
         return self.geometry.length()
 
+    @property
+    def start_point(self) -> tuple[float, float] | None:
+        """
+        Approximate centre-line start point as ``(x, y)`` in metres.
+
+        For straight walls created with :meth:`straight`, the polygon stores
+        four corner vertices; the start point is the midpoint of vertices 0
+        and 3 (the two corners at the original *start* end of the wall).
+        Returns ``None`` for non-polygon geometry (arc, spline).
+        """
+        if not isinstance(self.geometry, Polygon2D):
+            return None
+        pts = self.geometry.exterior
+        if len(pts) < 4:
+            return None
+        return (
+            round((pts[0].x + pts[3].x) / 2, 6),
+            round((pts[0].y + pts[3].y) / 2, 6),
+        )
+
+    @property
+    def end_point(self) -> tuple[float, float] | None:
+        """
+        Approximate centre-line end point as ``(x, y)`` in metres.
+
+        Mirrors :attr:`start_point` — uses vertices 1 and 2 of the polygon.
+        Returns ``None`` for non-polygon geometry.
+        """
+        if not isinstance(self.geometry, Polygon2D):
+            return None
+        pts = self.geometry.exterior
+        if len(pts) < 4:
+            return None
+        return (
+            round((pts[1].x + pts[2].x) / 2, 6),
+            round((pts[1].y + pts[2].y) / 2, 6),
+        )
+
+    def facing_direction(self) -> str:
+        """
+        Cardinal or intercardinal compass direction the wall *faces* (its outward normal).
+
+        For straight polygon walls the normal is computed from the centre-line
+        direction vector; for curve geometry the first tangent segment is used.
+        Returns one of: ``"N"``, ``"NE"``, ``"E"``, ``"SE"``,
+        ``"S"``, ``"SW"``, ``"W"``, ``"NW"``, or ``"unknown"``.
+        """
+        import math
+
+        sp = self.start_point
+        ep = self.end_point
+        if sp is None or ep is None:
+            return "unknown"
+
+        dx = ep[0] - sp[0]
+        dy = ep[1] - sp[1]
+        length = math.sqrt(dx * dx + dy * dy)
+        if length < 1e-10:
+            return "unknown"
+
+        # Left-hand normal (same convention as Wall.straight factory)
+        nx = -dy / length
+        ny = dx / length
+
+        # Convert to compass bearing: 0° = N (+Y), clockwise
+        bearing = math.degrees(math.atan2(nx, ny)) % 360
+
+        # Map to 8-point compass
+        idx = round(bearing / 45) % 8
+        return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][idx]
+
     def bounding_box(self) -> BoundingBox2D:
         if isinstance(self.geometry, Polygon2D):
             return self.geometry.bounding_box()

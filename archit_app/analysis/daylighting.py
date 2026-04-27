@@ -50,6 +50,9 @@ class WindowSolarResult:
     width_m: float
 
 
+_MIN_WFR = 0.10  # minimum window-to-floor ratio per standard requirements
+
+
 @dataclass
 class RoomDaylightResult:
     """Daylighting result for a single room."""
@@ -62,6 +65,9 @@ class RoomDaylightResult:
     window_to_floor_ratio: float    # window area / floor area
     windows: list[WindowSolarResult] = field(default_factory=list)
     avg_solar_score: float = 0.0    # area-weighted mean solar score across windows
+    compliant: bool = True          # True if WFR ≥ minimum standard
+    issue: str = ""                 # human-readable description when non-compliant
+    suggested_fix: str = ""         # actionable fix suggestion
 
 
 def daylight_report(
@@ -137,6 +143,21 @@ def daylight_report(
         else:
             avg_score = 0.0
 
+        compliant = wfr >= _MIN_WFR
+        if not compliant:
+            needed_m2 = round(_MIN_WFR * floor_area - total_window_area, 2)
+            issue = (
+                f"'{room.name or room.program}' WFR={wfr:.2%} is below the "
+                f"{_MIN_WFR:.0%} minimum (needs {needed_m2}m² more window area)."
+            )
+            fix = (
+                f"Add {needed_m2}m² of window area to an exterior wall of "
+                f"'{room.name or room.program}'. Prefer south-facing walls for solar gain."
+            )
+        else:
+            issue = ""
+            fix = ""
+
         results.append(RoomDaylightResult(
             room_id=room.id,
             room_name=room.name,
@@ -146,6 +167,9 @@ def daylight_report(
             window_to_floor_ratio=round(wfr, 4),
             windows=matched_windows,
             avg_solar_score=round(avg_score, 3),
+            compliant=compliant,
+            issue=issue,
+            suggested_fix=fix,
         ))
 
     return results
