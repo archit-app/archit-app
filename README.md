@@ -597,6 +597,45 @@ json_str  = level_to_geojson_str(ground)
 restored2 = level_from_geojson_str(json_str)
 ```
 
+### Wall geometry helpers (v0.3.4+)
+
+```python
+from archit_app import Wall
+
+wall = Wall.straight(0, 0, 6, 0, thickness=0.2, height=3.0)
+
+# Centre-line endpoints (tuple[float, float])
+print(wall.start_point)   # (0.0, 0.0)
+print(wall.end_point)     # (6.0, 0.0)
+
+# 8-point compass facing direction of the wall's left-hand normal
+print(wall.facing_direction())   # "N"  (wall runs E–W → normal faces N)
+```
+
+### Level batch creation and spatial query (v0.3.4+)
+
+```python
+from archit_app import Wall, Room, Level, Polygon2D, WORLD
+
+r1 = Room(boundary=Polygon2D.rectangle(0, 0, 6, 4, crs=WORLD), name="Living", program="living")
+r2 = Room(boundary=Polygon2D.rectangle(6, 0, 4, 4, crs=WORLD), name="Kitchen", program="kitchen")
+
+w1 = Wall.straight(0, 4, 10, 4, thickness=0.2, height=3.0)
+w2 = Wall.straight(10, 0, 10, 4, thickness=0.2, height=3.0)
+
+# Add many rooms / walls in one call — preferred over chained .add_room()/.add_wall()
+ground = (
+    Level(index=0, elevation=0.0, floor_height=3.0)
+    .add_rooms([r1, r2])
+    .add_walls([w1, w2])
+)
+
+# Spatial query — find all walls adjacent to a room (useful before add_opening)
+adjacent = ground.walls_for_room(r1.id, tolerance_m=0.35)
+for w in adjacent:
+    print(f"{w.id}: facing={w.facing_direction()}, length≈{w.length:.2f}m")
+```
+
 ### Spatial analysis
 
 ```python
@@ -614,10 +653,16 @@ G = build_adjacency_graph(ground)
 
 components = connected_components(G)   # list of connected room groups
 
-# --- Egress compliance ---
-exit_ids = {stair_room.id, lobby_room.id}
-report = egress_report(ground, exit_ids=exit_ids, max_distance_m=30.0)
-# [{"room_id", "egress_distance_m", "path", "compliant"}, ...]
+# --- Egress compliance (v0.3.4+: structured result, auto-detects exits) ---
+report = egress_report(ground)   # exit_ids auto-detected from "exit"/"lobby" programs
+# {
+#   "overall_compliant": True,
+#   "max_distance_m": 24.5,
+#   "exit_count": 2,
+#   "rooms": [{"room_id", "egress_distance_m", "path", "compliant",
+#              "issue", "suggested_fix"}, ...],
+#   "failed_rooms": [...]
+# }
 
 # --- Area program validation ---
 totals = area_by_program(building)
@@ -638,11 +683,14 @@ print(compliance.summary())
 #   [PASS] Footprint within lot boundary: yes
 #   [PASS] Footprint within setback envelope: yes
 
-# --- Daylighting ---
+# --- Daylighting (v0.3.4+: compliant flag, issue, suggested_fix per room) ---
 daylight = daylight_report(ground, north_angle_deg=15.0)
 for r in daylight:
     print(f"{r.room_name}: WFR={r.window_to_floor_ratio:.2f}, "
-          f"solar_score={r.avg_solar_score:.2f}")
+          f"solar_score={r.avg_solar_score:.2f}, compliant={r.compliant}")
+    if not r.compliant:
+        print(f"  Issue: {r.issue}")
+        print(f"  Fix:   {r.suggested_fix}")
 
 # --- Isovist (visibility polygon) ---
 from archit_app import Point2D, WORLD
@@ -740,6 +788,10 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Element transforms | Done | `copy_element`, `mirror_element`, `array_element` |
 | Building utilities | Done | `validate()` → `ValidationReport`, `to_agent_context()`, `duplicate_level()` |
 | Spatial index | Done | `Level.spatial_index()` → Shapely `STRtree` over all elements |
+| Wall geometry helpers | Done | `Wall.start_point`, `Wall.end_point`, `Wall.facing_direction()` — 8-point compass |
+| Level batch APIs | Done | `Level.add_walls(list)`, `Level.add_rooms(list)`, `Level.walls_for_room(room_id)` |
+| Structured analysis findings | Done | `egress_report()` returns structured dict with `issue`/`suggested_fix`; `daylight_report()` adds `compliant`, `issue`, `suggested_fix` per room |
+| Enriched agent context | Done | `Building.to_detailed_agent_context(level_index, include_walls, include_furniture, include_columns)` — scoped, with wall endpoints + facing |
 
 ---
 
