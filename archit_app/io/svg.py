@@ -256,29 +256,424 @@ def _render_column(col: Column, vt: ViewTransform, parent: ET.Element,
     })
 
 
-def _render_furniture(furniture, vt: ViewTransform, parent: ET.Element) -> None:
-    """Render a Furniture item: filled footprint polygon + centred label."""
-    d = _polygon2d_path(furniture.footprint, vt)
-    ET.SubElement(parent, "path", {
-        "d": d,
-        "fill": PALETTE["furniture_fill"],
-        "stroke": PALETTE["furniture_stroke"],
-        "stroke-width": "0.5",
-        "class": "furniture",
+# ---------------------------------------------------------------------------
+# Furniture — category-specific architectural plan-view symbols
+# ---------------------------------------------------------------------------
+
+# Colour tokens (warm, paper-like palette)
+_FC_BASE   = "#F5F0E7"  # parchment base
+_FC_SOFT   = "#EDE5D6"  # cushions / pillow surfaces
+_FC_PANEL  = "#CEBFA5"  # headboard / armrest solids
+_FC_WOOD   = "#D8CDB8"  # wood / cabinet surfaces
+_FC_STROKE = "#7D6B54"  # primary outline
+_FC_DETAIL = "#A08870"  # inner detail lines
+_FC_WET    = "#E4F0F5"  # bathroom / wet areas
+_FC_DARK   = "#4A3C2E"  # label text
+
+# Base fill by category (wet/wood groups differ from default parchment)
+_FURN_BASE_FILL: dict[str, str] = {
+    "bathtub": _FC_WET, "shower": _FC_WET, "toilet": _FC_WET,
+    "sink": _FC_WET, "washing_machine": _FC_WET,
+    "wardrobe": _FC_WOOD, "bookshelf": _FC_WOOD, "dresser": _FC_WOOD,
+    "kitchen_counter": _FC_WOOD, "island": _FC_WOOD, "tv_unit": _FC_WOOD,
+}
+
+
+# ── SVG primitive helpers ─────────────────────────────────────────────────────
+
+def _fr(g: ET.Element, x: float, y: float, w: float, h: float,
+        fill: str = _FC_BASE, stroke: str = _FC_DETAIL,
+        sw: float = 0.5, rx: float = 0.0) -> None:
+    """Rounded-or-plain rect helper for furniture symbols."""
+    if w <= 0 or h <= 0:
+        return
+    a: dict[str, str] = {
+        "x": f"{x:.2f}", "y": f"{y:.2f}",
+        "width": f"{w:.2f}", "height": f"{h:.2f}",
+        "fill": fill, "stroke": stroke, "stroke-width": f"{sw:.2f}",
+    }
+    if rx:
+        a["rx"] = f"{rx:.2f}"; a["ry"] = f"{rx:.2f}"
+    ET.SubElement(g, "rect", a)
+
+
+def _fc(g: ET.Element, cx: float, cy: float, r: float,
+        fill: str = _FC_BASE, stroke: str = _FC_DETAIL, sw: float = 0.5) -> None:
+    if r <= 0:
+        return
+    ET.SubElement(g, "circle", {
+        "cx": f"{cx:.2f}", "cy": f"{cy:.2f}", "r": f"{r:.2f}",
+        "fill": fill, "stroke": stroke, "stroke-width": f"{sw:.2f}",
     })
-    label = furniture.label or furniture.category.value.replace("_", " ").title()
-    if label:
-        c = furniture.footprint.centroid
-        cx, cy = vt.pt_to_svg(c)
-        ET.SubElement(parent, "text", {
-            "x": str(round(cx, 2)),
-            "y": str(round(cy, 2)),
-            "text-anchor": "middle",
-            "dominant-baseline": "middle",
-            "fill": PALETTE["furniture_stroke"],
-            "font-size": "6",
-            "font-family": "sans-serif",
-        }).text = label
+
+
+def _fe(g: ET.Element, cx: float, cy: float, rx: float, ry: float,
+        fill: str = _FC_BASE, stroke: str = _FC_DETAIL, sw: float = 0.5) -> None:
+    if rx <= 0 or ry <= 0:
+        return
+    ET.SubElement(g, "ellipse", {
+        "cx": f"{cx:.2f}", "cy": f"{cy:.2f}",
+        "rx": f"{rx:.2f}", "ry": f"{ry:.2f}",
+        "fill": fill, "stroke": stroke, "stroke-width": f"{sw:.2f}",
+    })
+
+
+def _fl(g: ET.Element, x1: float, y1: float, x2: float, y2: float,
+        stroke: str = _FC_DETAIL, sw: float = 0.4, dash: str = "") -> None:
+    a: dict[str, str] = {
+        "x1": f"{x1:.2f}", "y1": f"{y1:.2f}",
+        "x2": f"{x2:.2f}", "y2": f"{y2:.2f}",
+        "stroke": stroke, "stroke-width": f"{sw:.2f}", "fill": "none",
+    }
+    if dash:
+        a["stroke-dasharray"] = dash
+    ET.SubElement(g, "line", a)
+
+
+# ── Per-category draw functions  (x0,y0 = SVG top-left; w,h = pixel dims) ────
+
+def _furn_bed(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.5, min(w, h) * 0.05)
+    # Headboard strip (SVG top = wall / head-of-bed side)
+    hb = min(h * 0.16, 10.0)
+    _fr(g, x0, y0, w, hb, _FC_PANEL, _FC_STROKE, 0.4)
+    # Two pillows
+    pw = max(4.0, (w - 5 * m) / 2)
+    ph = max(3.0, min(h * 0.2, pw * 0.65, 16.0))
+    py = y0 + hb + 2 * m
+    rx = min(pw, ph) * 0.35
+    _fr(g, x0 + m, py, pw, ph, _FC_SOFT, _FC_DETAIL, 0.4, rx)
+    _fr(g, x0 + w - m - pw, py, pw, ph, _FC_SOFT, _FC_DETAIL, 0.4, rx)
+    # Turn-down fold line
+    _fl(g, x0 + m, py + ph + 3 * m, x0 + w - m, py + ph + 3 * m, _FC_DETAIL, 0.5)
+
+
+def _furn_sofa(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.0, min(w, h) * 0.04)
+    back_h = h * 0.30
+    arm_w = max(3.0, min(w * 0.12, 8.0))
+    _fr(g, x0, y0, w, back_h, _FC_SOFT, _FC_DETAIL, 0.3)
+    _fr(g, x0, y0, arm_w, h, _FC_PANEL, _FC_DETAIL, 0.3)
+    _fr(g, x0 + w - arm_w, y0, arm_w, h, _FC_PANEL, _FC_DETAIL, 0.3)
+    # Seat-cushion dividers
+    seat_w = w - 2 * arm_w
+    n = max(2, min(4, round(seat_w / 22)))
+    cw = seat_w / n
+    for i in range(1, n):
+        _fl(g, x0 + arm_w + i * cw, y0 + back_h + m,
+            x0 + arm_w + i * cw, y0 + h - m)
+
+
+def _furn_armchair(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.0, min(w, h) * 0.05)
+    arm_w = max(3.0, min(w * 0.18, 7.0))
+    back_h = h * 0.32
+    _fr(g, x0, y0, w, back_h, _FC_SOFT, _FC_DETAIL, 0.3)
+    _fr(g, x0, y0, arm_w, h, _FC_PANEL, _FC_DETAIL, 0.3)
+    _fr(g, x0 + w - arm_w, y0, arm_w, h, _FC_PANEL, _FC_DETAIL, 0.3)
+    _fr(g, x0 + arm_w + m, y0 + back_h + m,
+        w - 2 * arm_w - 2 * m, h - back_h - 2 * m,
+        "none", _FC_DETAIL, 0.3, 1.5)
+
+
+def _furn_dining_table(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(2.0, min(w, h) * 0.08)
+    _fr(g, x0 + m, y0 + m, w - 2 * m, h - 2 * m, "none", _FC_DETAIL, 0.5)
+    if w >= h:
+        _fl(g, x0 + m, y0 + h / 2, x0 + w - m, y0 + h / 2, _FC_DETAIL, 0.3, "3 2")
+    else:
+        _fl(g, x0 + w / 2, y0 + m, x0 + w / 2, y0 + h - m, _FC_DETAIL, 0.3, "3 2")
+
+
+def _furn_coffee_table(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.5, min(w, h) * 0.10)
+    _fr(g, x0 + m, y0 + m, w - 2 * m, h - 2 * m, "none", _FC_DETAIL, 0.5)
+    m2 = m * 1.9
+    _fr(g, x0 + m2, y0 + m2, w - 2 * m2, h - 2 * m2, _FC_SOFT, "none", 0)
+
+
+def _furn_chair(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.0, min(w, h) * 0.08)
+    back_h = h * 0.28
+    _fr(g, x0, y0, w, back_h, _FC_SOFT, _FC_DETAIL, 0.35)
+    _fr(g, x0 + m, y0 + back_h + m, w - 2 * m, h - back_h - 2 * m,
+        "none", _FC_DETAIL, 0.3)
+    # Corner legs
+    r = max(1.0, min(w, h) * 0.08)
+    for lx, ly in [(x0 + r * 1.2, y0 + r * 1.2), (x0 + w - r * 1.2, y0 + r * 1.2),
+                   (x0 + r * 1.2, y0 + h - r * 1.2), (x0 + w - r * 1.2, y0 + h - r * 1.2)]:
+        _fc(g, lx, ly, r, _FC_PANEL, _FC_STROKE, 0.3)
+
+
+def _furn_office_chair(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    cx, cy = x0 + w / 2, y0 + h / 2
+    r = min(w, h) / 2
+    _fc(g, cx, cy, r * 0.74, _FC_SOFT, _FC_DETAIL, 0.4)
+    # 5-arm base radiating from centre
+    for i in range(5):
+        ang = math.pi * (2 * i / 5 - 0.5)
+        ax = cx + math.cos(ang) * r * 0.88
+        ay = cy + math.sin(ang) * r * 0.88
+        _fl(g, cx, cy, ax, ay, _FC_STROKE, 0.5)
+        _fc(g, ax, ay, max(1.0, r * 0.09), _FC_PANEL, _FC_STROKE, 0.3)
+    _fc(g, cx, cy, r * 0.13, _FC_PANEL, _FC_STROKE, 0.4)
+    # Backrest arc at SVG top
+    pts_arc = []
+    for a in range(-50, 51, 10):
+        rad = math.radians(a - 90)
+        pts_arc.append((cx + math.cos(rad) * r * 0.67, cy + math.sin(rad) * r * 0.67))
+    d_arc = (f"M {pts_arc[0][0]:.2f} {pts_arc[0][1]:.2f}" +
+             "".join(f" L {p[0]:.2f} {p[1]:.2f}" for p in pts_arc[1:]))
+    ET.SubElement(g, "path", {"d": d_arc, "fill": "none",
+                               "stroke": _FC_PANEL, "stroke-width": "1.2"})
+
+
+def _furn_wardrobe(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.0, min(w, h) * 0.03)
+    n = max(2, min(4, round(w / 30)))
+    dw = w / n
+    for i in range(n):
+        dx = x0 + i * dw
+        _fr(g, dx + m, y0 + m, dw - 2 * m, h - 2 * m, "none", _FC_DETAIL, 0.4)
+        hx = dx + dw / 2 + (dw * 0.18 if i % 2 == 0 else -dw * 0.18)
+        hr = max(1.0, min(w, h) * 0.028)
+        _fc(g, hx, y0 + h / 2, hr, _FC_PANEL, _FC_STROKE, 0.4)
+    for i in range(1, n):
+        _fl(g, x0 + i * dw, y0, x0 + i * dw, y0 + h, _FC_STROKE, 0.5)
+
+
+def _furn_desk(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.5, min(w, h) * 0.06)
+    _fr(g, x0 + m, y0 + m, w - 2 * m, h - 2 * m, "none", _FC_DETAIL, 0.4)
+    mw = min(w * 0.42, 22.0)
+    mh = min(h * 0.28, 12.0)
+    _fr(g, x0 + w / 2 - mw / 2, y0 + m * 1.8, mw, mh, _FC_SOFT, _FC_DETAIL, 0.4, 1.0)
+
+
+def _furn_tv_unit(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.5, min(w, h) * 0.06)
+    _fr(g, x0 + m, y0 + m, w - 2 * m, h - 2 * m, "none", _FC_DETAIL, 0.35)
+    sw = w * 0.62
+    sh = h * 0.55
+    _fr(g, x0 + (w - sw) / 2, y0 + (h - sh) / 2,
+        sw, sh, "#3A3A3A", _FC_STROKE, 0.4, 1.5)
+
+
+def _furn_kitchen_counter(x0: float, y0: float, w: float, h: float,
+                           g: ET.Element) -> None:
+    m = max(1.0, min(w, h) * 0.04)
+    _fl(g, x0, y0 + h * 0.14, x0 + w, y0 + h * 0.14, _FC_DETAIL, 0.4)
+    _fr(g, x0 + m, y0 + h * 0.18, w - 2 * m, h * 0.78, "none", _FC_DETAIL, 0.35)
+    n = max(2, round(w / 30))
+    cw = w / n
+    for i in range(1, n):
+        _fl(g, x0 + i * cw, y0 + h * 0.18, x0 + i * cw, y0 + h * 0.95, _FC_DETAIL, 0.3)
+
+
+def _furn_island(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(2.0, min(w, h) * 0.09)
+    _fr(g, x0 + m, y0 + m, w - 2 * m, h - 2 * m, "none", _FC_DETAIL, 0.5)
+    _fl(g, x0 + w / 2, y0 + m * 1.5, x0 + w / 2, y0 + h - m * 1.5,
+        _FC_DETAIL, 0.3, "4 2")
+
+
+def _furn_bathtub(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    im = min(w, h) * 0.10
+    # Inner basin ellipse
+    _fe(g, x0 + w / 2, y0 + h / 2, (w / 2) - im, (h / 2) - im,
+        "#D8EEF5", _FC_DETAIL, 0.5)
+    # Drain at foot (SVG bottom)
+    dr = min(w, h) * 0.07
+    _fc(g, x0 + w / 2, y0 + h - im * 1.3, dr, _FC_WET, _FC_DETAIL, 0.45)
+    # Faucet at head (SVG top = wall side)
+    fw = min(w * 0.18, 7.0)
+    fh = min(h * 0.07, 3.5)
+    _fr(g, x0 + w / 2 - fw / 2, y0 + im * 0.6, fw, fh, _FC_PANEL, _FC_DETAIL, 0.4, fh / 2)
+
+
+def _furn_shower(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    step = max(4.0, min(w, h) * 0.22)
+    parts: list[str] = []
+    t = step
+    total = w + h
+    while t < total:
+        ax = x0 + min(t, w)
+        ay = y0 + max(h - t, 0.0)
+        bx = x0 + max(t - h, 0.0)
+        by = y0 + min(t, h)
+        parts.append(f"M {ax:.1f} {ay:.1f} L {bx:.1f} {by:.1f}")
+        t += step
+    if parts:
+        ET.SubElement(g, "path", {
+            "d": " ".join(parts), "fill": "none",
+            "stroke": "#A8CCE0", "stroke-width": "0.5",
+        })
+    # Drain at centre
+    dr = min(w, h) * 0.10
+    _fc(g, x0 + w / 2, y0 + h / 2, dr, _FC_WET, _FC_DETAIL, 0.5)
+    _fc(g, x0 + w / 2, y0 + h / 2, dr * 0.4, "#7AAEC0", _FC_DETAIL, 0.3)
+
+
+def _furn_toilet(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    tank_h = h * 0.36
+    bowl_h = h - tank_h
+    # Tank (SVG top = wall side)
+    _fr(g, x0, y0, w, tank_h, _FC_WET, _FC_DETAIL, 0.4, 2.0)
+    # Bowl outer rounded rect
+    bowl_rx = min(w * 0.45, bowl_h * 0.50)
+    _fr(g, x0, y0 + tank_h, w, bowl_h, _FC_WET, _FC_DETAIL, 0.4, bowl_rx)
+    # Seat ring
+    sm = w * 0.08
+    _fe(g, x0 + w / 2, y0 + tank_h + bowl_h * 0.50,
+        (w - 2 * sm) / 2, (bowl_h - sm) / 2, "none", _FC_DETAIL, 0.4)
+    # Water (inner ellipse, light blue)
+    _fe(g, x0 + w / 2, y0 + tank_h + bowl_h * 0.55,
+        (w - 2 * sm) / 2 * 0.72, (bowl_h - sm) / 2 * 0.65,
+        "#D8EEF5", _FC_DETAIL, 0.3)
+
+
+def _furn_sink(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    bm = min(w, h) * 0.10
+    # Basin
+    _fe(g, x0 + w / 2, y0 + h * 0.58,
+        (w - 2 * bm) / 2, (h - 3 * bm) / 2,
+        "#D8EEF5", _FC_DETAIL, 0.5)
+    # Drain
+    dr = min(w, h) * 0.07
+    _fc(g, x0 + w / 2, y0 + h * 0.65, dr, _FC_WET, _FC_DETAIL, 0.4)
+    # Faucet at back (SVG top = wall)
+    fw = min(w * 0.22, 8.0)
+    fh = min(h * 0.10, 4.0)
+    _fr(g, x0 + w / 2 - fw / 2, y0 + bm * 0.6, fw, fh, _FC_PANEL, _FC_DETAIL, 0.4, fh / 2)
+
+
+def _furn_washing_machine(x0: float, y0: float, w: float, h: float,
+                           g: ET.Element) -> None:
+    r = min(w, h) * 0.35
+    _fc(g, x0 + w / 2, y0 + h / 2, r, "#D8EEF5", _FC_DETAIL, 0.6)
+    _fc(g, x0 + w / 2, y0 + h / 2, r * 0.62, "#B8D8E8", _FC_DETAIL, 0.4)
+    _fc(g, x0 + w / 2, y0 + h / 2, r * 0.12, _FC_PANEL, _FC_STROKE, 0.4)
+    # Control panel strip at top
+    cp_h = min(h * 0.15, 5.0)
+    cm = min(w, h) * 0.06
+    _fr(g, x0 + cm, y0 + cm, w - 2 * cm, cp_h, _FC_SOFT, _FC_DETAIL, 0.3)
+
+
+def _furn_bookshelf(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    n = max(3, min(5, round(h / 14)))
+    sh = h / n
+    bd = min(w * 0.14, 5.0)
+    _fl(g, x0 + bd, y0, x0 + bd, y0 + h, _FC_DETAIL, 0.4)
+    for i in range(1, n):
+        _fl(g, x0, y0 + i * sh, x0 + w, y0 + i * sh, _FC_DETAIL, 0.4)
+    book_colors = ["#A8C8A0", "#C8A8C0", "#C8C080", "#A8B8C8", "#C8A888"]
+    for shelf in range(n):
+        sy = y0 + shelf * sh
+        bx = x0 + bd + 1.5
+        ci = 0
+        while bx < x0 + w - 1.5:
+            bw = max(3.0, min(8.0, (w - bd) * (0.09 + ci % 3 * 0.025)))
+            _fr(g, bx, sy + sh * 0.14, bw, sh * 0.72,
+                book_colors[ci % 5], "none", 0)
+            bx += bw + 0.8
+            ci += 1
+
+
+def _furn_dresser(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    n = max(3, min(5, round(h / 18)))
+    dh = h / n
+    m = max(1.0, min(w, h) * 0.04)
+    for i in range(n):
+        dy = y0 + i * dh
+        _fr(g, x0 + m, dy + m * 0.5, w - 2 * m, dh - m, "none", _FC_DETAIL, 0.4)
+        hw = min(w * 0.22, 12.0)
+        hh = max(1.5, dh * 0.14)
+        _fr(g, x0 + w / 2 - hw / 2, dy + (dh - hh) / 2,
+            hw, hh, _FC_PANEL, _FC_DETAIL, 0.4, hh / 2)
+
+
+def _furn_generic(x0: float, y0: float, w: float, h: float, g: ET.Element) -> None:
+    m = max(1.5, min(w, h) * 0.07)
+    if w > 6 and h > 6:
+        _fr(g, x0 + m, y0 + m, w - 2 * m, h - 2 * m, "none", _FC_DETAIL, 0.3)
+
+
+_FURN_DRAW: dict[str, object] = {
+    "sofa":            _furn_sofa,
+    "armchair":        _furn_armchair,
+    "dining_chair":    _furn_chair,
+    "office_chair":    _furn_office_chair,
+    "dining_table":    _furn_dining_table,
+    "coffee_table":    _furn_coffee_table,
+    "desk":            _furn_desk,
+    "bed":             _furn_bed,
+    "wardrobe":        _furn_wardrobe,
+    "dresser":         _furn_dresser,
+    "bookshelf":       _furn_bookshelf,
+    "tv_unit":         _furn_tv_unit,
+    "kitchen_counter": _furn_kitchen_counter,
+    "island":          _furn_island,
+    "bathtub":         _furn_bathtub,
+    "shower":          _furn_shower,
+    "toilet":          _furn_toilet,
+    "sink":            _furn_sink,
+    "washing_machine": _furn_washing_machine,
+}
+
+
+def _render_furniture(furniture, vt: ViewTransform, parent: ET.Element) -> None:
+    """Render a Furniture item with a category-specific architectural symbol."""
+    cat_val: str = furniture.category.value
+
+    # Bounding box of the footprint in SVG pixel space
+    pts_svg = [vt.pt_to_svg(p) for p in furniture.footprint.exterior]
+    if not pts_svg:
+        return
+    xs = [p[0] for p in pts_svg]
+    ys = [p[1] for p in pts_svg]
+    x0, y0 = min(xs), min(ys)
+    w,  h  = max(xs) - x0, max(ys) - y0
+    if w < 1.0 or h < 1.0:
+        return
+
+    # 1 — Base footprint polygon (background colour + border)
+    base_fill = _FURN_BASE_FILL.get(cat_val, _FC_BASE)
+    d_poly = _polygon_path(pts_svg)
+    ET.SubElement(parent, "path", {
+        "d": d_poly,
+        "fill": base_fill,
+        "stroke": _FC_STROKE,
+        "stroke-width": "0.7",
+        "class": f"furniture {cat_val}",
+    })
+
+    # 2 — Symbol detail elements (category-specific)
+    g = ET.SubElement(parent, "g", {"class": "furn-detail"})
+    draw_fn = _FURN_DRAW.get(cat_val, _furn_generic)  # type: ignore[assignment]
+    draw_fn(x0, y0, w, h, g)  # type: ignore[call-arg]
+
+    # 3 — Label with a translucent white backing for readability
+    label = furniture.label or cat_val.replace("_", " ").title()
+    cx_svg = x0 + w / 2
+    # Tall pieces (bed, wardrobe): label in lower 25 % to clear the symbol
+    label_y = y0 + (h * 0.78 if h > w * 1.3 else h / 2)
+    fs = max(4.5, min(7.5, min(w, h) * 0.19))
+    lw = len(label) * fs * 0.52
+    lh_bg = fs + 2.0
+    ET.SubElement(parent, "rect", {
+        "x": f"{cx_svg - lw / 2 - 1.0:.2f}",
+        "y": f"{label_y - lh_bg / 2:.2f}",
+        "width": f"{lw + 2.0:.2f}",
+        "height": f"{lh_bg:.2f}",
+        "fill": "#ffffff", "fill-opacity": "0.65", "stroke": "none",
+    })
+    ET.SubElement(parent, "text", {
+        "x": f"{cx_svg:.2f}", "y": f"{label_y:.2f}",
+        "text-anchor": "middle", "dominant-baseline": "middle",
+        "fill": _FC_DARK, "font-size": f"{fs:.1f}",
+        "font-family": "sans-serif", "font-weight": "500",
+        "pointer-events": "none",
+    }).text = label
 
 
 def _render_beam(beam, vt: ViewTransform, parent: ET.Element) -> None:

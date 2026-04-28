@@ -482,6 +482,98 @@ class Building(BaseModel):
                             ),
                         ))
 
+        # --- Room overlap check (requires shapely) ---
+        try:
+            for lv in self.levels:
+                rooms = list(lv.rooms)
+                for i in range(len(rooms)):
+                    for j in range(i + 1, len(rooms)):
+                        ra, rb = rooms[i], rooms[j]
+                        try:
+                            overlap = (
+                                ra.boundary._to_shapely()
+                                .intersection(rb.boundary._to_shapely())
+                                .area
+                            )
+                        except Exception:
+                            continue
+                        if overlap > 0.01:
+                            issues.append(ValidationIssue(
+                                severity="error",
+                                element_id=ra.id,
+                                message=(
+                                    f"Rooms '{ra.name or ra.program}' and "
+                                    f"'{rb.name or rb.program}' overlap by {overlap:.3f} m² "
+                                    f"on level {lv.index}. "
+                                    f"Remove the overlap from boundary_points."
+                                ),
+                            ))
+        except Exception:
+            pass  # shapely unavailable or unexpected geometry error
+
+        # --- Door/opening connectivity check (requires networkx + shapely) ---
+        try:
+            from archit_app.analysis.topology import build_adjacency_graph
+            import networkx as nx
+
+            for lv in self.levels:
+                if len(lv.rooms) < 2:
+                    continue
+
+                adj = build_adjacency_graph(lv)
+
+                # Build a subgraph where edges only exist when an opening (door)
+                # has been placed on the shared wall between two rooms.
+                door_graph: "nx.Graph" = nx.Graph()
+                door_graph.add_nodes_from(adj.nodes)
+                for u, v, data in adj.edges(data=True):
+                    if data.get("opening_ids"):
+                        door_graph.add_edge(u, v)
+
+                # 1. Every room must have at least one door to a neighbour.
+                flagged: set = set()
+                for room in lv.rooms:
+                    if door_graph.degree(room.id) == 0:
+                        flagged.add(room.id)
+                        issues.append(ValidationIssue(
+                            severity="error",
+                            element_id=room.id,
+                            message=(
+                                f"Room '{room.name or room.program}' on level {lv.index} "
+                                f"has no door or opening connecting it to any adjacent room. "
+                                f"Call get_walls_for_room to find its walls, then "
+                                f"add_opening_to_wall to add a door."
+                            ),
+                        ))
+
+                # 2. All rooms must be reachable from each other through doors.
+                if not nx.is_connected(door_graph):
+                    components = list(nx.connected_components(door_graph))
+                    largest = max(components, key=len)
+                    for comp in components:
+                        if comp is largest:
+                            continue
+                        for rid in comp:
+                            if rid in flagged:
+                                continue  # already reported as having no door at all
+                            room = next((r for r in lv.rooms if r.id == rid), None)
+                            if room:
+                                issues.append(ValidationIssue(
+                                    severity="error",
+                                    element_id=room.id,
+                                    message=(
+                                        f"Room '{room.name or room.program}' on level {lv.index} "
+                                        f"is in a disconnected door group — it cannot be reached "
+                                        f"from the main floor plan through doors. "
+                                        f"Add a door on a shared wall to connect it."
+                                    ),
+                                ))
+
+        except ImportError:
+            pass  # networkx not installed — connectivity check skipped
+        except Exception:
+            pass  # unexpected geometry or graph error — skip silently
+
         return ValidationReport(issues=issues)
 
     def __repr__(self) -> str:

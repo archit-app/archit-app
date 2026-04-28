@@ -25,6 +25,7 @@ pip install archit-app
 - **`CoordinateConverter`** — graph-based multi-CRS path-finding; `Point2D.to(target, conv)`; `build_default_converter()` for screen/image/world viewports
 - **Full NURBS evaluator** — `NURBSCurve` uses the Cox–de Boor algorithm (exact rational evaluation, not linear interpolation); `clamped_uniform()` factory for smooth curves through endpoints; supports exact conic sections via rational weights
 - Architectural elements: walls (straight, arc, spline), rooms, openings (doors/windows), columns, **staircases, slabs, ramps, elevators, beams**, **furniture** (20 categories, 18 named factories — sofa, beds, tables, desk, bathtub, toilet, sink, etc.), **annotations** (`TextAnnotation` with room-label factory, `DimensionLine` with auto-computed labels, `SectionMark` with view-direction arrows)
+- **Architectural furniture SVG symbols** — 19 category-specific plan-view symbols drawn in SVG: `bed` (headboard + pillows + fold line), `sofa` (back panel + armrests + cushion dividers), `armchair`, `chair` (leg dots), `office_chair` (5-arm base + backrest arc), `dining_table`, `coffee_table` (double inset), `wardrobe` (door panels + handles), `desk` (monitor rect), `tv_unit` (dark screen), `kitchen_counter` (worktop line + cabinet dividers), `island`, `bathtub` (basin ellipse + drain + faucet), `shower` (diagonal hatch + drain circle), `toilet` (tank + bowl + seat ring), `sink` (basin + drain + faucet), `washing_machine` (porthole drum + control panel), `bookshelf` (shelves + colored book spines), `dresser` (drawer lines + pulls). Wet areas use a distinct cool base fill; wood surfaces use a warm parchment fill.
 - **Wall joining** — `miter_join()`, `butt_join()`, `join_walls()` for clean corner geometry
 - **Structural grid** — named axes (A–H, 1–8), intersection queries, and point snapping
 - Multi-level building structure: `Level → Building`, with elevators and a grid attached at building level
@@ -792,6 +793,8 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Level batch APIs | Done | `Level.add_walls(list)`, `Level.add_rooms(list)`, `Level.walls_for_room(room_id)` |
 | Structured analysis findings | Done | `egress_report()` returns structured dict with `issue`/`suggested_fix`; `daylight_report()` adds `compliant`, `issue`, `suggested_fix` per room |
 | Enriched agent context | Done | `Building.to_detailed_agent_context(level_index, include_walls, include_furniture, include_columns)` — scoped, with wall endpoints + facing |
+| Architectural SVG furniture symbols | Done | 19 plan-view symbols per furniture category — beds, sofas, chairs, tables, bathroom fixtures, kitchen, storage — with parchment/wet-area colour scheme and internal detail lines |
+| Extended building validation | Done | `Building.validate()` now detects room overlaps (Shapely intersection) and door connectivity gaps (networkx) — every room must be reachable through doors |
 
 ---
 
