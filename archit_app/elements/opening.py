@@ -47,6 +47,7 @@ class Opening(Element):
     width:    nominal clear opening width in meters
     height:   nominal clear opening height in meters
     sill_height: distance from floor to bottom of opening (0.0 for doors)
+    position_along_wall: fractional position along the wall centre line (0.0–1.0)
     """
 
     kind: OpeningKind
@@ -54,6 +55,7 @@ class Opening(Element):
     width: float
     height: float
     sill_height: float = 0.0
+    position_along_wall: float = 0.5
     swing: SwingGeometry | None = None
     frame: Frame | None = None
 
