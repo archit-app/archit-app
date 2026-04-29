@@ -418,6 +418,135 @@ class Building(BaseModel):
             "levels": levels_summary,
         }
 
+    def to_protocol_snapshot(
+        self,
+        mode: str = "compact",
+        level_index: int | None = None,
+        budget: "BudgetHints | None" = None,
+        building_revision: int = 0,
+    ) -> "FloorplanSnapshot":
+        """Return a strict, validated :class:`FloorplanSnapshot` for agent consumption.
+
+        Builds on :meth:`to_agent_context` (compact) or
+        :meth:`to_detailed_agent_context` (detailed) and wraps the dict in the
+        Floorplan Agent Protocol's Pydantic model.
+
+        Parameters
+        ----------
+        mode:
+            ``"compact"`` returns counts + per-room summaries only.
+            ``"detailed"`` adds wall geometry, columns, and furniture per level.
+        level_index:
+            When set, only that level's data is included (saves tokens).
+        budget:
+            :class:`BudgetHints` controlling per-level element caps.  When the
+            cap is hit, ``budget.truncated`` is set to ``True``.
+        building_revision:
+            Caller-supplied monotonic counter for stale-ref detection.
+        """
+        from archit_app.protocol.refs import ElementRef
+        from archit_app.protocol.snapshot import (
+            BudgetHints,
+            FloorplanSnapshot,
+            LevelSummary,
+        )
+
+        budget = budget or BudgetHints()
+
+        if mode == "detailed":
+            ctx = self.to_detailed_agent_context(level_index=level_index)
+        elif mode == "compact":
+            ctx = self.to_agent_context()
+            if level_index is not None:
+                ctx["levels"] = [lv for lv in ctx["levels"] if lv.get("index") == level_index]
+        else:
+            raise ValueError(f"Unknown snapshot mode: {mode!r}")
+
+        truncated = False
+        elided: set[str] = set()
+
+        level_summaries: list[LevelSummary] = []
+        for lv_dict in ctx.get("levels", []):
+            lv_idx = int(lv_dict["index"])
+            level_obj = self.get_level(lv_idx)
+            wall_count = (
+                level_obj is not None and len(level_obj.walls) or lv_dict.get(
+                    "element_counts", {}
+                ).get("walls", 0)
+            )
+            area_m2 = sum(
+                float(r.get("area_m2", 0.0)) for r in lv_dict.get("rooms", ())
+            )
+
+            room_refs = tuple(
+                ElementRef(id=str(r.id), kind="room", level_index=lv_idx)
+                for r in (level_obj.rooms if level_obj is not None else ())
+            )
+
+            kwargs: dict = {
+                "index": lv_idx,
+                "name": lv_dict.get("name", f"Level {lv_idx}"),
+                "elevation_m": float(lv_dict.get("elevation_m", 0.0)),
+                "floor_height_m": lv_dict.get("floor_height_m"),
+                "room_refs": room_refs,
+                "rooms": tuple(lv_dict.get("rooms", ())),
+                "wall_count": int(wall_count),
+                "area_m2": round(area_m2, 2),
+                "bounding_box": lv_dict.get("bounding_box"),
+            }
+
+            if mode == "detailed":
+                cap = budget.max_elements_per_level
+                walls = lv_dict.get("walls")
+                if walls is not None:
+                    if len(walls) > cap:
+                        walls = walls[:cap]
+                        truncated = True
+                        elided.add("walls")
+                    kwargs["walls"] = tuple(walls)
+                furniture = lv_dict.get("furniture")
+                if furniture is not None:
+                    if len(furniture) > cap:
+                        furniture = furniture[:cap]
+                        truncated = True
+                        elided.add("furniture")
+                    kwargs["furniture"] = tuple(furniture)
+                columns = lv_dict.get("columns")
+                if columns is not None:
+                    if len(columns) > cap:
+                        columns = columns[:cap]
+                        truncated = True
+                        elided.add("columns")
+                    kwargs["columns"] = tuple(columns)
+
+            level_summaries.append(LevelSummary(**kwargs))
+
+        zoning = self.land.to_protocol_zoning() if self.land is not None else None
+
+        budget_out = BudgetHints(
+            max_elements_per_level=budget.max_elements_per_level,
+            truncated=truncated,
+            elided_kinds=tuple(sorted(elided)),
+        )
+
+        return FloorplanSnapshot(
+            mode=mode,  # type: ignore[arg-type]
+            building_id=self.metadata.project_number or self.metadata.name or "building",
+            building_revision=building_revision,
+            building_name=self.metadata.name or None,
+            project_number=self.metadata.project_number or None,
+            architect=self.metadata.architect or None,
+            total_levels=int(ctx.get("total_levels", 0)),
+            total_rooms=int(ctx.get("total_rooms", 0)),
+            gross_floor_area_m2=float(ctx.get("gross_floor_area_m2", 0.0)),
+            net_floor_area_m2=float(ctx.get("net_floor_area_m2", 0.0)),
+            area_by_program_m2=dict(ctx.get("area_by_program_m2", {})),
+            elevators_count=int(ctx.get("elevators", len(self.elevators))),
+            levels=tuple(level_summaries),
+            zoning=zoning,
+            budget=budget_out,
+        )
+
     def validate(self) -> "ValidationReport":
         """Check this building for common modelling errors.
 

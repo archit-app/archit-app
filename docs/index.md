@@ -22,6 +22,7 @@ Welcome to the `archit_app` library documentation.
 - [Elements](api/elements.md) — `Wall`, `Room`, `Opening`, `Column`, `Staircase`, `Slab`, `Ramp`, `Elevator`, `Beam`, `Furniture`, `TextAnnotation`, `DimensionLine`, `SectionMark`
 - [Building](api/building.md) — `Level`, `Building`, `BuildingMetadata`, `Land`, `StructuralGrid`
 - [I/O](api/io.md) — JSON, SVG, GeoJSON, DXF, IFC, PNG, PDF
+- [Agent Protocol](api/protocol.md) — `FloorplanSnapshot`, `AgentHandoff`, `MutationEnvelope`, `ProtocolReport`, versioning, JSON Schema export
 - [Registry](api/registry.md) — plugin/extension system
 
 ### Development
@@ -32,7 +33,7 @@ Welcome to the `archit_app` library documentation.
 
 | | |
 |---|---|
-| Version | 0.3.3 |
+| Version | 0.4.0 |
 | Python | 3.11+ |
 | License | MIT |
 | Source | [github.com/archit-app/archit-app](https://github.com/archit-app/archit-app) |

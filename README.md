@@ -37,6 +37,7 @@ pip install archit-app
   - Zoning compliance checker (FAR, lot coverage, height, setbacks)
   - Daylighting and solar orientation report per room
   - Isovist (visibility polygon) from any viewpoint
+- **Floorplan Agent Protocol** (`archit_app.protocol`) — versioned, strict-Pydantic inter-agent message layer: `FloorplanSnapshot` (compact/detailed), `AgentHandoff` (decisions + changes + open questions), `MutationEnvelope` (per-operation audit log), `ProtocolReport` (unified analysis report). All models use `extra="forbid"` + discriminated-union parsing. Includes five analysis adapters, `Building.to_protocol_snapshot()`, and a JSON Schema export CLI (`archit-app-export-protocol`).
 - I/O: JSON (fully round-trippable), SVG, GeoJSON, **DXF round-trip** (read + write, optional), **IFC 4.x export** (optional), **PNG raster** (Pillow, optional), **PDF** (reportlab, multi-page, optional)
 - **Layer registry** — `Layer` model with color, visibility, and lock state; `Building.add_layer()` / `is_layer_visible()`; SVG/PDF/PNG renderers honour `visible_layers` filter; material-linked fill colours in SVG output
 - **Unit conversion** (`archit_app.units`) — `to_feet`, `from_feet`, `to_inches`, `from_inches`, `to_mm`, `from_mm`, `to_cm`, `from_cm`; `parse_dimension()` accepts `"12'-6\""`, `"3800mm"`, `"10ft"`, `"36\""`, or bare floats (meters)
@@ -550,18 +551,55 @@ if report.has_errors:
     for issue in report.issues:
         print(f"[{issue.severity.upper()}] {issue.message}")
 
-# Export a flat dict for AI-agent handoffs
+# Export a flat dict for AI-agent handoffs (legacy)
 ctx = building.to_agent_context()
-# {
-#   "name": "My House",
-#   "level_count": 1,
-#   "total_gross_area_m2": 24.0,
-#   "levels": [...],
-#   ...
-# }
+
+# Preferred v0.4+: validated FloorplanSnapshot (Floorplan Agent Protocol v1)
+snap = building.to_protocol_snapshot(mode="compact", building_revision=0)
+print(snap.message_type)     # "floorplan_snapshot"
+print(snap.total_rooms)      # int
+agent_json = snap.model_dump_json(exclude_none=True)   # pass to LLM
 
 # Duplicate a level (fresh UUIDs for all elements)
 building2 = building.duplicate_level(src_index=0, new_index=1, new_elevation=3.0)
+```
+
+### Floorplan Agent Protocol
+
+```python
+from archit_app.protocol import (
+    FloorplanSnapshot, AgentHandoff, MutationEnvelope, ProtocolReport,
+    parse_message, dump_message, PROTOCOL_VERSION,
+)
+from archit_app.protocol.handoff import Decision
+from archit_app.protocol import compliance_report_to_protocol
+
+# 1. Compact snapshot — pass between agents as structured context
+snap = building.to_protocol_snapshot(mode="compact")
+print(PROTOCOL_VERSION)    # "1.0.0"
+
+# 2. Agent emits a structured handoff
+handoff = AgentHandoff(
+    agent_role="architect",
+    summary="Placed 6 rooms on level 0; total net area 87 m².",
+    decisions=(Decision(title="Compact footprint", rationale="10×9 m fits the brief."),),
+)
+
+# 3. Analysis adapter — convert existing results to ProtocolReport
+from archit_app.analysis.compliance import check_compliance
+raw_report = check_compliance(building, land)
+report = compliance_report_to_protocol(raw_report)
+print(report.kind)          # "compliance"
+print(report.summary)       # {"passed": 4, "failed": 0, "warnings": 0}
+
+# 4. Discriminated-union parsing (all four types in one call)
+msg = parse_message(handoff.model_dump_json())   # → AgentHandoff
+raw = dump_message(msg)                           # → dict
+
+# 5. Export JSON Schemas for all message types
+from archit_app.protocol.schema_export import export_schemas
+export_schemas("./schemas/")
+# Writes FloorplanSnapshot.schema.json, AgentHandoff.schema.json, …
 ```
 
 ### Spatial index
@@ -735,9 +773,13 @@ archit_app/
 ├── building/     Layer 3 — Land, Setbacks, ZoningInfo, Level, Building,
 │                            BuildingMetadata, StructuralGrid, Layer registry,
 │                            ValidationReport, duplicate_level, to_agent_context,
-│                            spatial_index
+│                            to_protocol_snapshot, spatial_index
 ├── analysis/     Layer 6 — topology, circulation, area, compliance,
 │                            daylighting, visibility
+├── protocol/     Layer 7 — Floorplan Agent Protocol v1.0.0
+│                            FloorplanSnapshot, AgentHandoff, MutationEnvelope,
+│                            ProtocolReport, ElementRef, parse_message, dump_message,
+│                            adapters (analysis → ProtocolReport), schema_export CLI
 ├── io/           Layer 5 — JSON, SVG, GeoJSON (read+write), DXF (read+write),
 │                            IFC 4.x, PNG, PDF
 ├── core/         Registry — plugin/extension system
@@ -759,6 +801,7 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 - [API Reference — Elements](docs/api/elements.md)
 - [API Reference — Building](docs/api/building.md)
 - [API Reference — I/O](docs/api/io.md)
+- [API Reference — Agent Protocol](docs/api/protocol.md)
 - [API Reference — Registry](docs/api/registry.md)
 - [Contributing](docs/contributing.md)
 
@@ -795,6 +838,7 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Enriched agent context | Done | `Building.to_detailed_agent_context(level_index, include_walls, include_furniture, include_columns)` — scoped, with wall endpoints + facing |
 | Architectural SVG furniture symbols | Done | 19 plan-view symbols per furniture category — beds, sofas, chairs, tables, bathroom fixtures, kitchen, storage — with parchment/wet-area colour scheme and internal detail lines |
 | Extended building validation | Done | `Building.validate()` now detects room overlaps (Shapely intersection) and door connectivity gaps (networkx) — every room must be reachable through doors |
+| **Floorplan Agent Protocol v1.0.0** | **Done** | Strict Pydantic inter-agent message layer — `FloorplanSnapshot`, `AgentHandoff`, `MutationEnvelope`, `ProtocolReport`, discriminated-union parse, 5 analysis adapters, JSON Schema export CLI |
 
 ---
 

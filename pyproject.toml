@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "archit-app"
-version = "0.3.4"
+version = "0.4.0"
 description = "A general-purpose, extensible floorplan library for architects and developers."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -29,6 +29,9 @@ dependencies = [
 Homepage = "https://github.com/archit-app/archit-app"
 Repository = "https://github.com/archit-app/archit-app"
 Issues = "https://github.com/archit-app/archit-app/issues"
+
+[project.scripts]
+archit-app-export-protocol = "archit_app.protocol.schema_export:cli"
 
 [project.optional-dependencies]
 dev = [

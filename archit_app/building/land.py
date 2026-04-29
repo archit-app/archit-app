@@ -521,6 +521,35 @@ class Land(BaseModel):
 
         return ctx
 
+    def to_protocol_zoning(self) -> "ZoningSummary":
+        """Return a strict :class:`ZoningSummary` for the Floorplan Agent Protocol.
+
+        Wraps :meth:`to_agent_context` so agents on the protocol path receive
+        a validated, JSON-Schema-described value instead of a loose dict.
+        """
+        from archit_app.protocol.snapshot import ZoningSummary
+
+        ctx = self.to_agent_context()
+        zoning = ctx.get("zoning") or {}
+        setbacks = ctx.get("setbacks_m") or {}
+        return ZoningSummary(
+            zone_code=zoning.get("zone_code"),
+            max_height_m=zoning.get("max_height_m"),
+            max_far=zoning.get("max_far"),
+            max_lot_coverage=zoning.get("max_lot_coverage"),
+            min_lot_area_m2=zoning.get("min_lot_area_m2"),
+            allowed_uses=tuple(zoning.get("allowed_uses") or ()),
+            notes=zoning.get("notes"),
+            source=zoning.get("source"),
+            max_floor_area_m2=zoning.get("max_floor_area_m2"),
+            max_footprint_m2=zoning.get("max_footprint_m2"),
+            setbacks_m=dict(setbacks),
+            address=ctx.get("address"),
+            area_m2=ctx.get("area_m2"),
+            buildable_area_m2=ctx.get("buildable_area_m2"),
+            north_angle_deg=ctx.get("north_angle_deg"),
+        )
+
     # ------------------------------------------------------------------
     # Mutation helpers (all return new instances — model is frozen)
     # ------------------------------------------------------------------
