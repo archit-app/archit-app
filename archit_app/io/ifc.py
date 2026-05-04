@@ -534,9 +534,9 @@ def _export_staircase(f, stair: Staircase, context, owner_history,
     by the total rise — a simplified but legally valid IFC representation.
     """
 
-    bb = stair.geometry.bounding_box()
+    bb = stair.bounding_box()
     poly = Polygon2D.rectangle(
-        bb.min_x, bb.min_y, bb.width, bb.height, crs=stair.geometry.crs
+        bb.min_corner.x, bb.min_corner.y, bb.width, bb.height, crs=stair.boundary.crs
     )
 
     profile = _polygon_to_2d_profile(f, poly, "StairProfile")
@@ -631,7 +631,9 @@ def _export_elevator(f, elevator: Elevator, context, owner_history,
                      storey_placement, elevation: float):
     """Export an Elevator shaft as IfcTransportElement."""
     profile = _polygon_to_2d_profile(f, elevator.shaft, "ElevatorProfile")
-    height = max(elevator.pit_depth + 2.5, 2.5)  # approximate cab height
+    # Approximate cab height — Elevator no longer carries pit_depth as a field;
+    # 2.5 m is a sensible IFC stand-in.
+    height = 2.5
     solid = _extruded_solid(f, profile, depth=height, z_offset=0.0)
     shape = _shape_representation(f, context, solid)
     placement = _local_placement(f, 0.0, 0.0, elevation, relative_to=storey_placement)

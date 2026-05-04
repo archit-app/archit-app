@@ -336,7 +336,10 @@ class TestIfcExport:
 
     def test_elevator_exported_as_ifc_transport_element(self):
         from archit_app.elements.elevator import Elevator
-        elev_elem = Elevator.standard(x=8, y=0, bottom_level_index=0, top_level_index=1)
+        elev_elem = Elevator.rectangular(
+            x=8, y=0, cab_width=1.1, cab_depth=1.4,
+            bottom_level_index=0, top_level_index=1,
+        )
         level = Level(index=0, elevation=0.0, floor_height=3.0)
         b = Building().add_level(level).add_elevator(elev_elem)
         model = building_to_ifc(b)

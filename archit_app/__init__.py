@@ -93,7 +93,7 @@ from archit_app.units import (
 )
 from archit_app.viewport import Viewport
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     # Geometry

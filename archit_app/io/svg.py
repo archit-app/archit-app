@@ -1109,7 +1109,7 @@ def level_to_svg(
     # Furniture layer
     visible_furn = [f for f in level.furniture if _visible(f)]
     if visible_furn:
-        furn_group = ET.SubElement(svg, "g", {"id": "furniture"})
+        furn_group = ET.SubElement(svg, "g", {"id": "furniture", "class": "furniture"})
         for furn in visible_furn:
             _render_furniture(furn, vt, furn_group)
 

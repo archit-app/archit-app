@@ -153,17 +153,6 @@ All models are **immutable**. Every "mutation" method returns a new object.
 
 ---
 
-## Brand colors
-
-| Token | Hex | Use |
-|-------|-----|-----|
-| **Void** | `#0C1018` | Night sky — deep shadows, primary text on light |
-| **Vellum** | `#E8EDF5` | Tracing paper — primary text on dark, light fills |
-| **Blueprint** | `#3B82F6` | Technical lines — accents, links |
-| **Datum** | `#F59E0B` | Reference point — icon handles, highlights |
-
----
-
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING](docs/contributing.md) for setup and coding standards.

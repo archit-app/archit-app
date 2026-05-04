@@ -6,10 +6,9 @@ A Level contains all architectural elements on a single horizontal plane.
 
 from __future__ import annotations
 
-import weakref
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from archit_app.elements.annotation import DimensionLine, SectionMark, TextAnnotation
 from archit_app.elements.base import Element
@@ -24,25 +23,20 @@ from archit_app.elements.staircase import Staircase
 from archit_app.elements.wall import Wall
 from archit_app.geometry.bbox import BoundingBox2D
 
-# Module-level Shapely cache, keyed weakly on Level instances.  When a Level is
-# garbage-collected (which happens automatically after each immutable mutation
-# produces a fresh instance), its cache entry is dropped — so cached polygons
-# never outlive their owning Level and the cache is implicitly invalidated by
-# the existing immutability semantics.
-#
-# Each value is a dict with two sub-dicts:
-#   "rooms": {(room_id, tolerance_m): buffered_shapely_polygon}
-#   "walls": {wall_id: shapely_box}
-_SHAPELY_CACHE: "weakref.WeakKeyDictionary[Level, dict]" = weakref.WeakKeyDictionary()
-
 
 def _level_shapely_cache(level: "Level") -> dict:
-    """Return (creating if needed) the Shapely cache dict for *level*."""
-    cache = _SHAPELY_CACHE.get(level)
-    if cache is None:
-        cache = {"rooms": {}, "walls": {}}
-        _SHAPELY_CACHE[level] = cache
-    return cache
+    """Return the per-instance Shapely cache for *level*.
+
+    The cache is a Pydantic PrivateAttr on the Level instance itself, so it
+    lives and dies with the immutable Level — every mutation produces a
+    fresh Level and a fresh empty cache, which is exactly the invalidation
+    semantics we want.
+
+    Shape:
+      "rooms": {(room_id, tolerance_m): buffered_shapely_polygon}
+      "walls": {wall_id: shapely_box}
+    """
+    return level._shapely_cache
 
 
 class Level(BaseModel):
@@ -56,6 +50,10 @@ class Level(BaseModel):
     """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    # Per-instance Shapely cache (lazy-populated).  Lives and dies with this
+    # immutable Level — every mutation produces a new Level and a new cache.
+    _shapely_cache: dict = PrivateAttr(default_factory=lambda: {"rooms": {}, "walls": {}})
 
     index: int
     elevation: float

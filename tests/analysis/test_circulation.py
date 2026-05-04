@@ -101,24 +101,25 @@ class TestEgressReport:
     def test_report_has_entry_per_room(self):
         level, a, b, c = _chain_level()
         report = egress_report(level, exit_ids={c.id})
-        assert len(report) == 3
+        # v0.3.4+: structured dict with `rooms` list and summary fields
+        assert len(report["rooms"]) == 3
 
     def test_exit_room_is_compliant(self):
         level, a, b, c = _chain_level()
         report = egress_report(level, exit_ids={c.id})
-        exit_entry = next(r for r in report if r["room_id"] == c.id)
+        exit_entry = next(r for r in report["rooms"] if r["room_id"] == str(c.id))
         assert exit_entry["compliant"] is True
         assert exit_entry["egress_distance_m"] == 0.0
 
     def test_compliant_within_limit(self):
         level, a, b, c = _chain_level()
         report = egress_report(level, exit_ids={c.id}, max_distance_m=100.0)
-        for entry in report:
+        for entry in report["rooms"]:
             assert entry["compliant"] is True
 
     def test_non_compliant_beyond_limit(self):
         level, a, b, c = _chain_level()
         report = egress_report(level, exit_ids={c.id}, max_distance_m=0.01)
-        non_exits = [r for r in report if not r["is_exit"]]
+        non_exits = [r for r in report["rooms"] if not r["is_exit"]]
         for entry in non_exits:
             assert entry["compliant"] is False
