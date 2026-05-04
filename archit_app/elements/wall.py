@@ -168,6 +168,27 @@ class Wall(Element):
             update={"openings": tuple(o for o in self.openings if o.id != opening_id)}
         )
 
+    def opening_at(self, position_along_wall: float, tol: float = 1e-6) -> Opening | None:
+        """
+        Return the opening whose ``position_along_wall`` is closest to the given
+        fractional position (within ``tol``), or ``None`` if no opening is near.
+
+        Convenience for callers who need to look up an opening by its position
+        along the wall centre line rather than by id.
+        """
+        if not self.openings:
+            return None
+        nearest: Opening | None = None
+        best = float("inf")
+        for op in self.openings:
+            d = abs(op.position_along_wall - position_along_wall)
+            if d < best:
+                best = d
+                nearest = op
+        if nearest is not None and best <= tol:
+            return nearest
+        return None
+
     # ------------------------------------------------------------------
     # Factories
     # ------------------------------------------------------------------

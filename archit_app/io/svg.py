@@ -36,6 +36,16 @@ from archit_app.geometry.polygon import Polygon2D
 # Default color palette
 # ---------------------------------------------------------------------------
 
+# Brand palette (canonical):
+#   Void      #0C1018  — primary linework / dark
+#   Vellum    #E8EDF5  — paper / background
+#   Blueprint #3B82F6  — annotations / labels
+#   Datum     #F59E0B  — dimensions / highlights
+BRAND_VOID = "#0C1018"
+BRAND_VELLUM = "#E8EDF5"
+BRAND_BLUEPRINT = "#3B82F6"
+BRAND_DATUM = "#F59E0B"
+
 PALETTE = {
     "room_fill": "#D6E8F5",        # light blue
     "room_stroke": "#5B8DB8",      # medium blue
@@ -54,6 +64,11 @@ PALETTE = {
     "background": "#FAFAFA",
     "room_label": "#1A3A5C",
     "annotation": "#666666",
+    # Brand tokens
+    "brand_void": BRAND_VOID,
+    "brand_vellum": BRAND_VELLUM,
+    "brand_blueprint": BRAND_BLUEPRINT,
+    "brand_datum": BRAND_DATUM,
     # Extended palette for new elements
     "furniture_fill": "#FFF8DC",   # cornsilk
     "furniture_stroke": "#A0845C",
@@ -170,31 +185,8 @@ def _render_room(room: Room, vt: ViewTransform, parent: ET.Element) -> None:
         "stroke-width": PALETTE["room_stroke_width"],
         "class": "room",
     })
-
-    # Room label
-    if room.name or room.program:
-        c = room.boundary.centroid
-        cx, cy = vt.pt_to_svg(c)
-        label = room.name or room.program
-        program_line = room.program if room.name and room.program else ""
-        area_line = f"{room.area:.1f} m²"
-
-        lines = [l for l in [label, program_line, area_line] if l]
-        line_height = 11
-        start_y = cy - (len(lines) - 1) * line_height / 2
-
-        for i, line in enumerate(lines):
-            text_el = ET.SubElement(parent, "text", {
-                "x": str(round(cx, 2)),
-                "y": str(round(start_y + i * line_height, 2)),
-                "text-anchor": "middle",
-                "dominant-baseline": "middle",
-                "fill": PALETTE["room_label"],
-                "font-size": "8" if i > 0 else "9",
-                "font-family": "sans-serif",
-                "font-weight": "bold" if i == 0 else "normal",
-            })
-            text_el.text = line
+    # Room label is rendered separately (top-most layer) by _render_room_label
+    # so it sits above walls / furniture / dimensions.
 
 
 def _render_wall(wall: Wall, vt: ViewTransform, parent: ET.Element,
@@ -228,20 +220,9 @@ def _render_opening(opening: Opening, vt: ViewTransform, parent: ET.Element) -> 
         "class": f"opening {opening.kind.value}",
     })
 
-    # Door swing arc (only for DOOR kind)
-    if opening.kind == OpeningKind.DOOR and opening.swing is not None:
-        arc_pts = [vt.pt_to_svg(p) for p in opening.swing.arc.to_polyline(24)]
-        if arc_pts:
-            d_arc = f"M {arc_pts[0][0]:.3f} {arc_pts[0][1]:.3f}"
-            for x, y in arc_pts[1:]:
-                d_arc += f" L {x:.3f} {y:.3f}"
-            ET.SubElement(parent, "path", {
-                "d": d_arc,
-                "fill": "none",
-                "stroke": PALETTE["door_stroke"],
-                "stroke-width": "0.5",
-                "stroke-dasharray": "2 2",
-            })
+    # Window glazing (two parallel thin lines spanning the width).
+    if opening.kind in (OpeningKind.WINDOW, OpeningKind.PASS_THROUGH):
+        _render_window_glazing(None, vt, opening, parent)
 
 
 def _render_column(col: Column, vt: ViewTransform, parent: ET.Element,
@@ -978,6 +959,8 @@ def level_to_svg(
     palette: dict | None = None,
     visible_layers: set[str] | None = None,
     material_library=None,
+    *,
+    building: Building | None = None,
 ) -> str:
     """
     Render a Level as an SVG string.
@@ -1027,7 +1010,17 @@ def level_to_svg(
         ET.indent(svg)
         return ET.tostring(svg, encoding="unicode")
 
-    vt = ViewTransform(bbox, pixels_per_meter, margin)
+    # Widen the top margin to leave room for the title block (top-right) and
+    # north arrow.  Bump bottom slightly for the scale bar tick labels.
+    top_pad_extra = 60.0
+    bottom_pad_extra = 18.0
+    effective_margin = max(margin, MARGIN_PX)
+    vt = ViewTransform(bbox, pixels_per_meter, effective_margin)
+    # Stretch the SVG height so the title block / scale bar don't overlap drawing.
+    vt.svg_height += top_pad_extra + bottom_pad_extra
+    # Shift the world by `top_pad_extra` so the drawing starts below the title.
+    # We do this by overriding the y-flip to offset by the extra top padding.
+    vt.world_max_y = vt.world_max_y + (top_pad_extra / vt.ppm)
 
     svg = ET.Element("svg", {
         "xmlns": "http://www.w3.org/2000/svg",
@@ -1036,10 +1029,10 @@ def level_to_svg(
         "viewBox": f"0 0 {vt.svg_width:.2f} {vt.svg_height:.2f}",
     })
 
-    # Background
+    # Background — Vellum (paper)
     ET.SubElement(svg, "rect", {
         "width": "100%", "height": "100%",
-        "fill": PALETTE["background"],
+        "fill": PALETTE["brand_vellum"],
     })
 
     # Add defs (arrowhead marker for ramp direction)
@@ -1072,21 +1065,32 @@ def level_to_svg(
         for stair in visible_stairs:
             _render_staircase(stair, vt, stair_group)
 
-    # Walls layer
+    # Walls layer (wall bodies only)
     wall_group = ET.SubElement(svg, "g", {"id": "walls"})
+    wall_openings: list = []
     for wall in level.walls:
         if _visible(wall):
             _render_wall(wall, vt, wall_group,
                          fill_override=_material_color(wall, PALETTE["wall_fill"]) or None)
-            for opening in wall.openings:
-                if _visible(opening):
-                    _render_opening(opening, vt, wall_group)
+            wall_openings.extend(op for op in wall.openings if _visible(op))
 
-    # Level-standalone openings
+    # Openings layer — wall openings + standalone openings, all in one group
+    # so the "Openings" toggle hides/shows every door and window at once.
     opening_group = ET.SubElement(svg, "g", {"id": "openings"})
+    all_openings: list[Opening] = []
+    for opening in wall_openings:
+        _render_opening(opening, vt, opening_group)
+        all_openings.append(opening)
     for opening in level.openings:
         if _visible(opening):
             _render_opening(opening, vt, opening_group)
+            all_openings.append(opening)
+
+    # Door swing arcs (separate group so they overlay the leaf cleanly).
+    swing_group = ET.SubElement(svg, "g", {"id": "door-swings"})
+    for opening in all_openings:
+        if opening.kind == OpeningKind.DOOR:
+            _render_door_swing(svg, vt, opening, level.rooms, swing_group)
 
     # Beams (above walls)
     visible_beams = [b for b in level.beams if _visible(b)]
@@ -1130,48 +1134,622 @@ def level_to_svg(
         for ann in visible_anns:
             _render_text_annotation(ann, vt, ann_group)
 
-    # Scale bar (bottom-left)
+    # Per-room labels (bold name + area), top-most so they always read.
+    room_label_group = ET.SubElement(svg, "g", {"id": "room-labels"})
+    for room in level.rooms:
+        if _visible(room):
+            _render_room_label(room, vt, room_label_group)
+
+    # Dimension chains on exterior walls (mm).
+    ext_walls = _exterior_walls(level)
+    _render_dimensions(svg, vt, ext_walls)
+
+    # Scale bar (bottom-left, 5 m in 1 m increments).
     _render_scale_bar(svg, vt, pixels_per_meter)
 
-    # Title
+    # Title block (top-right) + north arrow underneath.
     if title is None:
         title = level.name or f"Level {level.index}"
-    ET.SubElement(svg, "text", {
-        "x": str(round(margin)),
-        "y": str(round(margin * 0.6)),
-        "font-family": "sans-serif",
-        "font-size": "12",
-        "font-weight": "bold",
-        "fill": "#333",
-    }).text = title
+
+    project_name = ""
+    project_number = ""
+    date_label = ""
+    north_angle_deg = 0.0
+    if building is not None:
+        project_name = building.metadata.name or ""
+        project_number = building.metadata.project_number or ""
+        date_label = building.metadata.date or ""
+        if building.land is not None:
+            north_angle_deg = float(getattr(building.land, "north_angle", 0.0) or 0.0)
+    if not project_name:
+        project_name = title
+    if not date_label:
+        try:
+            import datetime as _dt
+            date_label = _dt.date.today().isoformat()
+        except Exception:
+            date_label = ""
+
+    level_label = level.name or f"Level {level.index}"
+    scale_label = _format_scale_label(pixels_per_meter)
+
+    bx, by, block_w, block_h = _render_title_block(
+        svg, vt,
+        project_name=project_name,
+        project_number=project_number,
+        level_label=level_label,
+        scale_label=scale_label,
+        date_label=date_label,
+    )
+    # North arrow: centered under the title block, padded.
+    arrow_cx = bx + block_w - 24.0
+    arrow_cy = by + block_h + 26.0
+    _render_north_arrow(svg, vt, north_angle_deg, anchor_x=arrow_cx, anchor_y=arrow_cy)
 
     ET.indent(svg, space="  ")
     return '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(svg, encoding="unicode")
 
 
 def _render_scale_bar(svg: ET.Element, vt: ViewTransform, pixels_per_meter: float) -> None:
-    """Draw a 1-meter scale bar at the bottom left of the SVG."""
-    bar_len_px = pixels_per_meter  # exactly 1 meter
+    """Draw a 5-meter scale bar in 1 m increments at the bottom-left of the SVG.
+
+    Renders alternating black/white cells (typical architectural scale bar).
+    """
+    n_segments = 5
+    seg_px = pixels_per_meter  # 1 m per segment
     bar_x = vt.margin
-    bar_y = vt.svg_height - vt.margin * 0.5
-    bar_h = 4
+    bar_y = vt.svg_height - vt.margin * 0.55
+    bar_h = 5.0
 
     g = ET.SubElement(svg, "g", {"id": "scale-bar"})
+    # Outer outline
     ET.SubElement(g, "rect", {
-        "x": str(round(bar_x, 2)),
-        "y": str(round(bar_y - bar_h, 2)),
-        "width": str(round(bar_len_px, 2)),
-        "height": str(bar_h),
-        "fill": "#333",
+        "x": f"{bar_x:.2f}",
+        "y": f"{bar_y - bar_h:.2f}",
+        "width": f"{seg_px * n_segments:.2f}",
+        "height": f"{bar_h:.2f}",
+        "fill": "none",
+        "stroke": PALETTE["brand_void"],
+        "stroke-width": "0.6",
     })
+    # Alternating segments
+    for i in range(n_segments):
+        fill = PALETTE["brand_void"] if i % 2 == 0 else "#FFFFFF"
+        ET.SubElement(g, "rect", {
+            "x": f"{bar_x + i * seg_px:.2f}",
+            "y": f"{bar_y - bar_h:.2f}",
+            "width": f"{seg_px:.2f}",
+            "height": f"{bar_h:.2f}",
+            "fill": fill,
+            "stroke": PALETTE["brand_void"],
+            "stroke-width": "0.4",
+        })
+    # Tick labels at 0, 1, 2, ..., 5
+    for i in range(n_segments + 1):
+        tx = bar_x + i * seg_px
+        ET.SubElement(g, "text", {
+            "x": f"{tx:.2f}",
+            "y": f"{bar_y + 9:.2f}",
+            "text-anchor": "middle",
+            "font-family": "sans-serif",
+            "font-size": "7",
+            "fill": PALETTE["brand_void"],
+        }).text = f"{i}"
+    # Unit label
     ET.SubElement(g, "text", {
-        "x": str(round(bar_x + bar_len_px / 2, 2)),
-        "y": str(round(bar_y + 8, 2)),
-        "text-anchor": "middle",
+        "x": f"{bar_x + n_segments * seg_px + 6:.2f}",
+        "y": f"{bar_y - 1:.2f}",
         "font-family": "sans-serif",
         "font-size": "7",
-        "fill": "#555",
-    }).text = "1 m"
+        "fill": PALETTE["brand_void"],
+    }).text = "m"
+
+
+# ---------------------------------------------------------------------------
+# Polished-export helpers (title block, north arrow, dimensions, swings, glazing)
+# ---------------------------------------------------------------------------
+
+def _format_scale_label(pixels_per_meter: float) -> str:
+    """Convert pixels_per_meter to a friendly scale string like '1:50'.
+
+    Assumes the SVG is rendered/printed at 96 DPI (≈ 3.7795 px/mm). One world
+    metre = pixels_per_meter pixels = pixels_per_meter / 3.7795 mm on paper.
+    The drawing scale is then 1 : (1000 / (px_per_mm)).
+    """
+    if pixels_per_meter <= 0:
+        return "1:?"
+    px_per_mm = 96.0 / 25.4
+    mm_per_world_m = pixels_per_meter / px_per_mm
+    if mm_per_world_m <= 0:
+        return "1:?"
+    denom = 1000.0 / mm_per_world_m
+    # Round to a nice architectural scale
+    nice = [10, 20, 25, 50, 100, 200, 500, 1000]
+    closest = min(nice, key=lambda v: abs(v - denom))
+    return f"1:{closest}"
+
+
+def _render_title_block(
+    svg: ET.Element,
+    vt: ViewTransform,
+    *,
+    project_name: str,
+    project_number: str,
+    level_label: str,
+    scale_label: str,
+    date_label: str,
+) -> tuple[float, float, float, float]:
+    """Render a title block in the top-right corner.
+
+    Returns the (x, y, width, height) bounds of the block so the caller can
+    place the north arrow directly underneath without overlapping.
+    """
+    block_w = 180.0
+    block_h = 78.0
+    pad = 6.0
+    bx = vt.svg_width - vt.margin * 0.5 - block_w
+    by = vt.margin * 0.4
+
+    g = ET.SubElement(svg, "g", {"id": "title-block"})
+    # Outer frame
+    ET.SubElement(g, "rect", {
+        "x": f"{bx:.2f}", "y": f"{by:.2f}",
+        "width": f"{block_w:.2f}", "height": f"{block_h:.2f}",
+        "fill": "#FFFFFF", "fill-opacity": "0.9",
+        "stroke": PALETTE["brand_void"], "stroke-width": "0.8",
+    })
+    # ARCHIT wordmark (top strip)
+    strip_h = 16.0
+    ET.SubElement(g, "rect", {
+        "x": f"{bx:.2f}", "y": f"{by:.2f}",
+        "width": f"{block_w:.2f}", "height": f"{strip_h:.2f}",
+        "fill": PALETTE["brand_void"], "stroke": "none",
+    })
+    ET.SubElement(g, "text", {
+        "x": f"{bx + pad:.2f}",
+        "y": f"{by + strip_h * 0.68:.2f}",
+        "font-family": "sans-serif",
+        "font-size": "10",
+        "font-weight": "bold",
+        "letter-spacing": "2",
+        "fill": PALETTE["brand_vellum"],
+    }).text = "ARCHIT"
+    ET.SubElement(g, "text", {
+        "x": f"{bx + block_w - pad:.2f}",
+        "y": f"{by + strip_h * 0.68:.2f}",
+        "text-anchor": "end",
+        "font-family": "sans-serif",
+        "font-size": "7",
+        "fill": PALETTE["brand_datum"],
+    }).text = scale_label
+
+    # Body lines
+    line_y = by + strip_h + 12.0
+    line_h = 11.0
+
+    def _row(label: str, value: str, y: float, value_color: str | None = None) -> None:
+        ET.SubElement(g, "text", {
+            "x": f"{bx + pad:.2f}", "y": f"{y:.2f}",
+            "font-family": "sans-serif", "font-size": "6.5",
+            "fill": PALETTE["brand_void"], "font-weight": "bold",
+            "letter-spacing": "0.5",
+        }).text = label.upper()
+        ET.SubElement(g, "text", {
+            "x": f"{bx + pad:.2f}", "y": f"{y + line_h * 0.85:.2f}",
+            "font-family": "sans-serif", "font-size": "8.5",
+            "fill": value_color or PALETTE["brand_void"],
+        }).text = value or "—"
+
+    _row("Project", project_name or "(unnamed project)", line_y)
+    if project_number:
+        _row("No.", project_number, line_y + line_h * 1.7)
+        _row("Date / Sheet", f"{date_label}   ·   {level_label}",
+             line_y + line_h * 3.4, value_color=PALETTE["brand_blueprint"])
+    else:
+        _row("Date / Sheet", f"{date_label}   ·   {level_label}",
+             line_y + line_h * 1.7, value_color=PALETTE["brand_blueprint"])
+
+    return bx, by, block_w, block_h
+
+
+def _render_north_arrow(
+    svg: ET.Element,
+    vt: ViewTransform,
+    north_angle_deg: float,
+    *,
+    anchor_x: float,
+    anchor_y: float,
+) -> None:
+    """Draw a north arrow at (anchor_x, anchor_y) — center of the symbol.
+
+    *north_angle_deg* is degrees clockwise from world +Y to geographic north.
+    World +Y maps to SVG -Y (Y-flip), so a 0° north points "up" in the SVG.
+    """
+    r = 18.0
+    g = ET.SubElement(svg, "g", {"id": "north-arrow"})
+    # Background circle
+    ET.SubElement(g, "circle", {
+        "cx": f"{anchor_x:.2f}", "cy": f"{anchor_y:.2f}", "r": f"{r:.2f}",
+        "fill": "#FFFFFF", "fill-opacity": "0.85",
+        "stroke": PALETTE["brand_void"], "stroke-width": "0.6",
+    })
+    # The needle: a slim isoceles triangle pointing to north
+    # Compass bearing → SVG angle. Positive bearing rotates CW; in SVG +X right,
+    # +Y down, so a 0° bearing should point to (0, -1).
+    ang = math.radians(north_angle_deg)
+    # Tip
+    tip_x = anchor_x + math.sin(ang) * (r - 2)
+    tip_y = anchor_y - math.cos(ang) * (r - 2)
+    # Base perpendicular
+    base_left_x = anchor_x + math.sin(ang + math.pi) * (r - 2) * 0.35 + math.cos(ang) * 4
+    base_left_y = anchor_y - math.cos(ang + math.pi) * (r - 2) * 0.35 + math.sin(ang) * 4
+    base_right_x = anchor_x + math.sin(ang + math.pi) * (r - 2) * 0.35 - math.cos(ang) * 4
+    base_right_y = anchor_y - math.cos(ang + math.pi) * (r - 2) * 0.35 - math.sin(ang) * 4
+    # Filled half (right of axis) in Datum, hollow half in Void
+    cx, cy = anchor_x, anchor_y
+    ET.SubElement(g, "path", {
+        "d": (f"M {tip_x:.2f} {tip_y:.2f} "
+              f"L {base_right_x:.2f} {base_right_y:.2f} "
+              f"L {cx:.2f} {cy:.2f} Z"),
+        "fill": PALETTE["brand_datum"],
+        "stroke": PALETTE["brand_void"],
+        "stroke-width": "0.5",
+    })
+    ET.SubElement(g, "path", {
+        "d": (f"M {tip_x:.2f} {tip_y:.2f} "
+              f"L {base_left_x:.2f} {base_left_y:.2f} "
+              f"L {cx:.2f} {cy:.2f} Z"),
+        "fill": "#FFFFFF",
+        "stroke": PALETTE["brand_void"],
+        "stroke-width": "0.5",
+    })
+    # "N" label outside the tip
+    label_x = anchor_x + math.sin(ang) * (r + 6)
+    label_y = anchor_y - math.cos(ang) * (r + 6)
+    ET.SubElement(g, "text", {
+        "x": f"{label_x:.2f}", "y": f"{label_y:.2f}",
+        "text-anchor": "middle", "dominant-baseline": "middle",
+        "font-family": "sans-serif", "font-size": "9", "font-weight": "bold",
+        "fill": PALETTE["brand_void"],
+    }).text = "N"
+
+
+def _exterior_walls(level: Level) -> list[Wall]:
+    """Return walls flagged as exterior (best-effort)."""
+    from archit_app.elements.wall import WallType
+    return [w for w in level.walls if getattr(w, "wall_type", None) == WallType.EXTERIOR]
+
+
+def _render_dimensions(
+    svg: ET.Element,
+    vt: ViewTransform,
+    exterior_walls: list[Wall],
+) -> None:
+    """Annotate each exterior wall segment with its length in mm.
+
+    The label is placed perpendicular to the wall, offset 300 mm to the
+    *outside*. The outside direction is approximated by the left-hand normal
+    of the start→end vector (matches Wall.straight convention).
+    """
+    if not exterior_walls:
+        return
+    g = ET.SubElement(svg, "g", {"id": "exterior-dimensions"})
+    offset_world = 0.3  # 300 mm
+    tick = 4.0  # px
+    for wall in exterior_walls:
+        sp = wall.start_point
+        ep = wall.end_point
+        if sp is None or ep is None:
+            continue
+        ax, ay = sp
+        bx, by = ep
+        dx = bx - ax
+        dy = by - ay
+        length_m = math.hypot(dx, dy)
+        if length_m < 0.05:
+            continue
+        # Outward normal = left-hand normal of (ax,ay)->(bx,by) in world space
+        nx = -dy / length_m
+        ny = dx / length_m
+        # Offset endpoints
+        ox1 = ax + nx * offset_world
+        oy1 = ay + ny * offset_world
+        ox2 = bx + nx * offset_world
+        oy2 = by + ny * offset_world
+        # Convert to SVG
+        sx1, sy1 = vt.to_svg(ox1, oy1)
+        sx2, sy2 = vt.to_svg(ox2, oy2)
+        # Wall endpoints in SVG (for extension lines)
+        wsx1, wsy1 = vt.to_svg(ax, ay)
+        wsx2, wsy2 = vt.to_svg(bx, by)
+        stroke = PALETTE["brand_datum"]
+        # Extension lines
+        ET.SubElement(g, "line", {
+            "x1": f"{wsx1:.2f}", "y1": f"{wsy1:.2f}",
+            "x2": f"{sx1:.2f}", "y2": f"{sy1:.2f}",
+            "stroke": stroke, "stroke-width": "0.3",
+        })
+        ET.SubElement(g, "line", {
+            "x1": f"{wsx2:.2f}", "y1": f"{wsy2:.2f}",
+            "x2": f"{sx2:.2f}", "y2": f"{sy2:.2f}",
+            "stroke": stroke, "stroke-width": "0.3",
+        })
+        # Dimension line
+        ET.SubElement(g, "line", {
+            "x1": f"{sx1:.2f}", "y1": f"{sy1:.2f}",
+            "x2": f"{sx2:.2f}", "y2": f"{sy2:.2f}",
+            "stroke": stroke, "stroke-width": "0.5",
+        })
+        # End ticks (perpendicular short strokes)
+        # tick direction in SVG = along the dim line, rotated 90°
+        ddx = sx2 - sx1
+        ddy = sy2 - sy1
+        dd_len = math.hypot(ddx, ddy) or 1.0
+        tdx = -ddy / dd_len * (tick / 2)
+        tdy = ddx / dd_len * (tick / 2)
+        for px, py in ((sx1, sy1), (sx2, sy2)):
+            ET.SubElement(g, "line", {
+                "x1": f"{px - tdx:.2f}", "y1": f"{py - tdy:.2f}",
+                "x2": f"{px + tdx:.2f}", "y2": f"{py + tdy:.2f}",
+                "stroke": stroke, "stroke-width": "0.5",
+            })
+        # Label centered above the dimension line
+        mx = (sx1 + sx2) / 2
+        my = (sy1 + sy2) / 2
+        label_offset = 7.0
+        # Push label further out (additional perpendicular)
+        lx = mx + (-ddy / dd_len) * label_offset
+        ly = my + (ddx / dd_len) * label_offset
+        # Compute rotation so text reads along the wall (avoid upside-down)
+        ang = math.degrees(math.atan2(ddy, ddx))
+        if ang > 90:
+            ang -= 180
+        elif ang < -90:
+            ang += 180
+        mm_label = f"{int(round(length_m * 1000))}"
+        ET.SubElement(g, "text", {
+            "x": f"{lx:.2f}", "y": f"{ly:.2f}",
+            "text-anchor": "middle", "dominant-baseline": "middle",
+            "font-family": "sans-serif", "font-size": "7",
+            "fill": stroke,
+            "transform": f"rotate({ang:.2f},{lx:.2f},{ly:.2f})",
+        }).text = mm_label
+
+
+def _opening_long_axis(opening: Opening) -> tuple[Point2D, Point2D] | None:
+    """Return the two endpoints of the longer axis of the opening polygon.
+
+    For typical door/window openings this is the line that runs along the wall
+    centre-line within the opening footprint.
+    """
+    pts = list(opening.geometry.exterior)
+    if len(pts) < 4:
+        return None
+    # Pick the longest pair among consecutive midpoints of opposite edges.
+    n = len(pts)
+    # Edge midpoints
+    edge_mids = []
+    for i in range(n):
+        a = pts[i]
+        b = pts[(i + 1) % n]
+        edge_mids.append(Point2D(x=(a.x + b.x) / 2, y=(a.y + b.y) / 2))
+    # Pair opposite edges (assume rectangle: 0↔2 and 1↔3)
+    pair_a = (edge_mids[0], edge_mids[2 % n])
+    pair_b = (edge_mids[1 % n], edge_mids[3 % n])
+    da = pair_a[0].distance_to(pair_a[1]) if hasattr(pair_a[0], "distance_to") else math.hypot(
+        pair_a[0].x - pair_a[1].x, pair_a[0].y - pair_a[1].y)
+    db = pair_b[0].distance_to(pair_b[1]) if hasattr(pair_b[0], "distance_to") else math.hypot(
+        pair_b[0].x - pair_b[1].x, pair_b[0].y - pair_b[1].y)
+    if da >= db:
+        return pair_a
+    return pair_b
+
+
+def _render_door_swing(
+    svg: ET.Element,
+    vt: ViewTransform,
+    opening: Opening,
+    rooms: Iterable[Room],
+    parent: ET.Element,
+) -> None:
+    """Render a 90° dashed swing arc for a door opening.
+
+    Hinge = endpoint of the opening's long axis closest to a room's centroid.
+    The arc sweeps from the closed-leaf direction toward the room interior.
+    """
+    if opening.kind != OpeningKind.DOOR:
+        return
+    axis = _opening_long_axis(opening)
+    if axis is None:
+        return
+    p1, p2 = axis
+    # Pick the nearest room centroid to determine which side is interior.
+    rooms_list = list(rooms)
+    target = None
+    if rooms_list:
+        # Use the centre of the opening as the probe
+        cx = (p1.x + p2.x) / 2
+        cy = (p1.y + p2.y) / 2
+        target = min(
+            rooms_list,
+            key=lambda r: math.hypot(r.boundary.centroid.x - cx,
+                                     r.boundary.centroid.y - cy),
+        )
+    # Determine hinge endpoint:
+    # If the opening already carries a SwingGeometry, use its arc directly.
+    if opening.swing is not None:
+        try:
+            arc_pts = [vt.pt_to_svg(p) for p in opening.swing.arc.to_polyline(24)]
+        except Exception:
+            arc_pts = []
+        if arc_pts:
+            d_arc = f"M {arc_pts[0][0]:.2f} {arc_pts[0][1]:.2f}"
+            for x, y in arc_pts[1:]:
+                d_arc += f" L {x:.2f} {y:.2f}"
+            ET.SubElement(parent, "path", {
+                "d": d_arc, "fill": "none",
+                "stroke": PALETTE["brand_void"],
+                "stroke-width": "0.4",
+                "stroke-dasharray": "2 2",
+                "class": "door-swing",
+            })
+            return
+    # Otherwise derive an arc geometrically.
+    if target is None:
+        # Default: hinge = p1, sweep into +normal side
+        hinge = p1
+        far = p2
+    else:
+        d1 = math.hypot(target.boundary.centroid.x - p1.x,
+                        target.boundary.centroid.y - p1.y)
+        d2 = math.hypot(target.boundary.centroid.x - p2.x,
+                        target.boundary.centroid.y - p2.y)
+        if d1 <= d2:
+            hinge, far = p1, p2
+        else:
+            hinge, far = p2, p1
+    # Vector from hinge to far end (along wall) — this is the "closed leaf"
+    vx = far.x - hinge.x
+    vy = far.y - hinge.y
+    leaf_len = math.hypot(vx, vy)
+    if leaf_len < 1e-6:
+        return
+    # Two candidate sweep ends: rotate 90° CW or CCW about hinge
+    # Candidate A: CCW (rotate by +90°): (-vy, vx)
+    cand_a = (hinge.x - vy, hinge.y + vx)
+    cand_b = (hinge.x + vy, hinge.y - vx)
+    # Pick whichever is closer to the room centroid (interior direction)
+    if target is not None:
+        rcx = target.boundary.centroid.x
+        rcy = target.boundary.centroid.y
+        if (math.hypot(cand_a[0] - rcx, cand_a[1] - rcy)
+                <= math.hypot(cand_b[0] - rcx, cand_b[1] - rcy)):
+            sweep_end = cand_a
+            sweep_flag = 0  # CCW in world; gets flipped in SVG
+        else:
+            sweep_end = cand_b
+            sweep_flag = 1
+    else:
+        sweep_end = cand_a
+        sweep_flag = 0
+    # Draw the closed-leaf line + arc using SVG arc command.
+    hsx, hsy = vt.pt_to_svg(hinge)
+    fsx, fsy = vt.pt_to_svg(Point2D(x=far.x, y=far.y))
+    esx, esy = vt.pt_to_svg(Point2D(x=sweep_end[0], y=sweep_end[1]))
+    radius_px = vt.scale(leaf_len)
+    # World CCW (sweep_flag=0) becomes SVG CW because Y is flipped → so swap
+    svg_sweep = 1 - sweep_flag
+    # Closed-leaf segment
+    ET.SubElement(parent, "line", {
+        "x1": f"{hsx:.2f}", "y1": f"{hsy:.2f}",
+        "x2": f"{fsx:.2f}", "y2": f"{fsy:.2f}",
+        "stroke": PALETTE["brand_void"],
+        "stroke-width": "0.4",
+        "stroke-dasharray": "2 2",
+        "class": "door-leaf",
+    })
+    # Arc from far → sweep_end with center=hinge, radius=leaf length
+    d = (f"M {fsx:.2f} {fsy:.2f} "
+         f"A {radius_px:.2f} {radius_px:.2f} 0 0 {svg_sweep} {esx:.2f} {esy:.2f}")
+    ET.SubElement(parent, "path", {
+        "d": d, "fill": "none",
+        "stroke": PALETTE["brand_void"],
+        "stroke-width": "0.4",
+        "stroke-dasharray": "2 2",
+        "class": "door-swing",
+    })
+
+
+def _render_window_glazing(
+    svg: ET.Element,
+    vt: ViewTransform,
+    opening: Opening,
+    parent: ET.Element,
+) -> None:
+    """Draw two parallel thin lines spanning the window opening width.
+
+    The lines run along the long axis of the opening polygon, offset slightly
+    to either side of the centre-line (to suggest inner / outer glass face).
+    """
+    if opening.kind not in (OpeningKind.WINDOW, OpeningKind.PASS_THROUGH):
+        return
+    axis = _opening_long_axis(opening)
+    if axis is None:
+        return
+    p1, p2 = axis
+    dx = p2.x - p1.x
+    dy = p2.y - p1.y
+    length = math.hypot(dx, dy)
+    if length < 1e-6:
+        return
+    # Perpendicular unit vector (world)
+    nx = -dy / length
+    ny = dx / length
+    # Offset = ¼ of the wall thickness embodied in the opening footprint
+    # Approximate: use the *short* axis length / 4
+    short_axis = _polygon_short_extent(opening.geometry)
+    off = max(0.02, short_axis * 0.25)
+    a1 = (p1.x + nx * off, p1.y + ny * off)
+    a2 = (p2.x + nx * off, p2.y + ny * off)
+    b1 = (p1.x - nx * off, p1.y - ny * off)
+    b2 = (p2.x - nx * off, p2.y - ny * off)
+    for (sx0, sy0), (sx1, sy1) in (
+        (vt.to_svg(*a1), vt.to_svg(*a2)),
+        (vt.to_svg(*b1), vt.to_svg(*b2)),
+    ):
+        ET.SubElement(parent, "line", {
+            "x1": f"{sx0:.2f}", "y1": f"{sy0:.2f}",
+            "x2": f"{sx1:.2f}", "y2": f"{sy1:.2f}",
+            "stroke": PALETTE["brand_blueprint"],
+            "stroke-width": "0.4",
+            "class": "window-glazing",
+        })
+
+
+def _polygon_short_extent(poly: Polygon2D) -> float:
+    """Return the minimum dimension of the polygon's axis-aligned bbox."""
+    bb = poly.bounding_box()
+    return min(bb.width, bb.height)
+
+
+def _render_room_label(room: Room, vt: ViewTransform, parent: ET.Element) -> None:
+    """Centred room label: name (bold) + area (regular). Skip if <2 m².
+
+    Auto-rotates to align with the longer axis of the room bounding box.
+    """
+    try:
+        area = room.area
+    except Exception:
+        area = 0.0
+    if area < 2.0:
+        return
+    name = room.name or room.program or ""
+    if not name:
+        return
+    c = room.boundary.centroid
+    cx, cy = vt.pt_to_svg(c)
+    # Rotate text along the longer bbox axis
+    bb = room.boundary.bounding_box()
+    rot_deg = 0.0 if bb.width >= bb.height else -90.0
+    transform = f"rotate({rot_deg:.1f},{cx:.2f},{cy:.2f})" if rot_deg else ""
+    g = ET.SubElement(parent, "g", {"class": "room-label"})
+    if transform:
+        g.set("transform", transform)
+    # Name
+    ET.SubElement(g, "text", {
+        "x": f"{cx:.2f}", "y": f"{cy - 4:.2f}",
+        "text-anchor": "middle", "dominant-baseline": "middle",
+        "font-family": "sans-serif", "font-size": "9",
+        "font-weight": "bold",
+        "fill": PALETTE["brand_blueprint"],
+    }).text = name
+    # Area
+    ET.SubElement(g, "text", {
+        "x": f"{cx:.2f}", "y": f"{cy + 6:.2f}",
+        "text-anchor": "middle", "dominant-baseline": "middle",
+        "font-family": "sans-serif", "font-size": "7",
+        "fill": PALETTE["brand_void"],
+    }).text = f"{area:.1f} m²"
 
 
 # ---------------------------------------------------------------------------
@@ -1215,6 +1793,7 @@ def building_to_svg_pages(
             margin=margin,
             title=title,
             visible_layers=visible_layers,
+            building=building,
         )
         pages.append((level.index, svg_str))
     return pages

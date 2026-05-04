@@ -6,15 +6,36 @@ All Transform2D objects are immutable. Compose with @ to create new transforms.
 Convention:
   - Column vectors: apply as  p' = M @ [x, y, 1]^T
   - Compose left-to-right: (T1 @ T2) applies T2 first, then T1
+
+Implementation note:
+  ``numpy`` is imported lazily so that ``import archit_app`` does not pay the
+  numpy startup cost on cold paths that never touch geometry. The :func:`_np`
+  helper returns the cached module.
 """
 
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any
+from typing import Any, TYPE_CHECKING
 
-import numpy as np
 from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    import numpy as np  # noqa: F401
+
+
+# Module-level cache for the lazily-imported numpy module.
+_np_module: Any = None
+
+
+def _np() -> Any:
+    """Return the numpy module, importing it on first use."""
+    global _np_module
+    if _np_module is None:
+        import numpy as _np_imported
+
+        _np_module = _np_imported
+    return _np_module
 
 
 class Transform2D:
@@ -28,7 +49,8 @@ class Transform2D:
 
     __slots__ = ("_m",)
 
-    def __init__(self, matrix: np.ndarray | None = None) -> None:
+    def __init__(self, matrix: Any | None = None) -> None:
+        np = _np()
         if matrix is None:
             matrix = np.eye(3, dtype=np.float64)
         m = np.asarray(matrix, dtype=np.float64)
@@ -42,7 +64,7 @@ class Transform2D:
         raise AttributeError("Transform2D is immutable.")
 
     @property
-    def matrix(self) -> np.ndarray:
+    def matrix(self) -> Any:
         return self._m
 
     # ------------------------------------------------------------------
@@ -51,10 +73,12 @@ class Transform2D:
 
     @classmethod
     def identity(cls) -> "Transform2D":
+        np = _np()
         return cls(np.eye(3, dtype=np.float64))
 
     @classmethod
     def translate(cls, dx: float, dy: float) -> "Transform2D":
+        np = _np()
         m = np.eye(3, dtype=np.float64)
         m[0, 2] = dx
         m[1, 2] = dy
@@ -62,10 +86,12 @@ class Transform2D:
 
     @classmethod
     def scale(cls, sx: float, sy: float) -> "Transform2D":
+        np = _np()
         return cls(np.diag([sx, sy, 1.0]))
 
     @classmethod
     def rotate(cls, angle_rad: float) -> "Transform2D":
+        np = _np()
         c, s = math.cos(angle_rad), math.sin(angle_rad)
         m = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
         return cls(m)
@@ -76,7 +102,7 @@ class Transform2D:
         return cls.scale(1.0, -1.0)
 
     @classmethod
-    def from_matrix(cls, m: np.ndarray) -> "Transform2D":
+    def from_matrix(cls, m: Any) -> "Transform2D":
         return cls(m)
 
     # ------------------------------------------------------------------
@@ -88,6 +114,7 @@ class Transform2D:
 
     @classmethod
     def from_list(cls, data: list[list[float]]) -> "Transform2D":
+        np = _np()
         return cls(np.array(data, dtype=np.float64))
 
     # Pydantic v2 support
@@ -101,7 +128,13 @@ class Transform2D:
             return v
         if isinstance(v, list):
             return cls.from_list(v)
-        if isinstance(v, np.ndarray):
+        # numpy.ndarray check is done lazily so we don't import numpy at
+        # module load time just to identify it.
+        try:
+            np = _np()
+        except ImportError:
+            np = None
+        if np is not None and isinstance(v, np.ndarray):
             return cls(v)
         raise ValueError(f"Cannot convert {type(v)} to Transform2D")
 
@@ -128,11 +161,12 @@ class Transform2D:
         """Compose: self @ other applies other first, then self."""
         return Transform2D(self._m @ other._m)
 
-    def apply_to_array(self, pts: np.ndarray) -> np.ndarray:
+    def apply_to_array(self, pts: Any) -> Any:
         """
         Apply transform to an (N, 2) array of points.
         Returns an (N, 2) array.
         """
+        np = _np()
         pts = np.asarray(pts, dtype=np.float64)
         single = pts.ndim == 1
         if single:
@@ -144,9 +178,11 @@ class Transform2D:
         return result[0] if single else result
 
     def inverse(self) -> "Transform2D":
+        np = _np()
         return Transform2D(np.linalg.inv(self._m))
 
     def is_identity(self, tol: float = 1e-9) -> bool:
+        np = _np()
         return bool(np.allclose(self._m, np.eye(3), atol=tol))
 
     # ------------------------------------------------------------------
@@ -156,6 +192,7 @@ class Transform2D:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Transform2D):
             return NotImplemented
+        np = _np()
         return bool(np.allclose(self._m, other._m))
 
     def __hash__(self) -> int:

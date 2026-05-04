@@ -6,9 +6,30 @@ A Level contains all architectural elements on a single horizontal plane.
 
 from __future__ import annotations
 
+import weakref
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict
+
+# Module-level Shapely cache, keyed weakly on Level instances.  When a Level is
+# garbage-collected (which happens automatically after each immutable mutation
+# produces a fresh instance), its cache entry is dropped — so cached polygons
+# never outlive their owning Level and the cache is implicitly invalidated by
+# the existing immutability semantics.
+#
+# Each value is a dict with two sub-dicts:
+#   "rooms": {(room_id, tolerance_m): buffered_shapely_polygon}
+#   "walls": {wall_id: shapely_box}
+_SHAPELY_CACHE: "weakref.WeakKeyDictionary[Level, dict]" = weakref.WeakKeyDictionary()
+
+
+def _level_shapely_cache(level: "Level") -> dict:
+    """Return (creating if needed) the Shapely cache dict for *level*."""
+    cache = _SHAPELY_CACHE.get(level)
+    if cache is None:
+        cache = {"rooms": {}, "walls": {}}
+        _SHAPELY_CACHE[level] = cache
+    return cache
 
 from archit_app.elements.annotation import DimensionLine, SectionMark, TextAnnotation
 from archit_app.elements.base import Element
@@ -110,18 +131,27 @@ class Level(BaseModel):
         geometries = []
         elements = []
 
+        wall_cache: dict = _level_shapely_cache(self)["walls"]
+
         for coll in (
             self.walls, self.rooms, self.columns,
             self.beams, self.slabs, self.ramps, self.staircases, self.furniture,
         ):
+            is_walls = coll is self.walls
             for el in coll:
-                bb = el.bounding_box()
-                if bb is not None:
-                    geometries.append(
-                        shp_box(bb.min_corner.x, bb.min_corner.y,
-                                bb.max_corner.x, bb.max_corner.y)
+                geom = wall_cache.get(el.id) if is_walls else None
+                if geom is None:
+                    bb = el.bounding_box()
+                    if bb is None:
+                        continue
+                    geom = shp_box(
+                        bb.min_corner.x, bb.min_corner.y,
+                        bb.max_corner.x, bb.max_corner.y,
                     )
-                    elements.append(el)
+                    if is_walls:
+                        wall_cache[el.id] = geom
+                geometries.append(geom)
+                elements.append(el)
 
         return STRtree(geometries), elements
 
@@ -129,7 +159,9 @@ class Level(BaseModel):
         self,
         room_id: UUID,
         tolerance_m: float = 0.35,
-    ) -> list[Wall]:
+        *,
+        verbose: bool = False,
+    ) -> list[Wall] | list[dict]:
         """Return the walls that form (or closely border) a room's boundary.
 
         Uses a Shapely buffered-intersection test: a wall is considered part of
@@ -145,12 +177,21 @@ class Level(BaseModel):
             Expansion distance in metres applied to the room polygon before
             testing intersection (default 0.35 m — slightly larger than a
             standard 200 mm wall so both faces are captured).
+        verbose:
+            When ``False`` (default) return ``list[Wall]`` for backward
+            compatibility.  When ``True`` return a list of records of the
+            form ``{"wall": Wall, "intersection_area_m2": float,
+            "distance_to_room_m": float}`` describing how each candidate
+            relates to the room.  ``distance_to_room_m`` is measured against
+            the *un-buffered* room polygon and is ``0.0`` for walls that
+            actually intersect the room.
 
         Returns
         -------
-        list[Wall]
-            Walls whose geometry intersects the expanded room boundary,
-            sorted by wall type (exterior first) then by length descending.
+        list[Wall] | list[dict]
+            Walls (or verbose records) whose geometry intersects the expanded
+            room boundary, sorted by wall type (exterior first) then by
+            length descending.
 
         Raises
         ------
@@ -172,29 +213,79 @@ class Level(BaseModel):
         if room is None:
             raise KeyError(f"No room with id {room_id} on level {self.index}.")
 
-        # Build Shapely polygon for the room boundary (expanded by tolerance)
-        pts = room.boundary.exterior
-        shp_room = ShpPolygon([(p.x, p.y) for p in pts]).buffer(tolerance_m)
+        cache = _level_shapely_cache(self)
+        room_cache: dict = cache["rooms"]
+        wall_cache: dict = cache["walls"]
 
-        result: list[Wall] = []
-        for wall in self.walls:
-            bb = wall.bounding_box()
-            if bb is None:
-                continue
-            wall_box = shp_box(
-                bb.min_corner.x, bb.min_corner.y,
-                bb.max_corner.x, bb.max_corner.y,
-            )
-            if shp_room.intersects(wall_box):
-                result.append(wall)
+        # Build (or fetch) the un-buffered and buffered Shapely room polygons.
+        # The un-buffered version is needed for distance/area in verbose mode.
+        room_key_raw = (room.id, None)
+        shp_room_raw = room_cache.get(room_key_raw)
+        if shp_room_raw is None:
+            pts = room.boundary.exterior
+            shp_room_raw = ShpPolygon([(p.x, p.y) for p in pts])
+            room_cache[room_key_raw] = shp_room_raw
 
-        # Sort: exterior walls first, then by length descending
+        room_key_buf = (room.id, float(tolerance_m))
+        shp_room = room_cache.get(room_key_buf)
+        if shp_room is None:
+            shp_room = shp_room_raw.buffer(tolerance_m)
+            room_cache[room_key_buf] = shp_room
+
         from archit_app.elements.wall import WallType
+
         def _sort_key(w: Wall):
             order = {WallType.EXTERIOR: 0, WallType.CURTAIN: 1}.get(w.wall_type, 2)
             return (order, -w.length)
 
-        return sorted(result, key=_sort_key)
+        if not verbose:
+            result: list[Wall] = []
+            for wall in self.walls:
+                wall_box = wall_cache.get(wall.id)
+                if wall_box is None:
+                    bb = wall.bounding_box()
+                    if bb is None:
+                        continue
+                    wall_box = shp_box(
+                        bb.min_corner.x, bb.min_corner.y,
+                        bb.max_corner.x, bb.max_corner.y,
+                    )
+                    wall_cache[wall.id] = wall_box
+                if shp_room.intersects(wall_box):
+                    result.append(wall)
+            return sorted(result, key=_sort_key)
+
+        # Verbose mode: compute intersection area and signed distance.
+        records: list[dict] = []
+        for wall in self.walls:
+            wall_box = wall_cache.get(wall.id)
+            if wall_box is None:
+                bb = wall.bounding_box()
+                if bb is None:
+                    continue
+                wall_box = shp_box(
+                    bb.min_corner.x, bb.min_corner.y,
+                    bb.max_corner.x, bb.max_corner.y,
+                )
+                wall_cache[wall.id] = wall_box
+            if not shp_room.intersects(wall_box):
+                continue
+            try:
+                inter_area = float(shp_room.intersection(wall_box).area)
+            except Exception:
+                inter_area = 0.0
+            try:
+                dist = float(shp_room_raw.distance(wall_box))
+            except Exception:
+                dist = 0.0
+            records.append({
+                "wall": wall,
+                "intersection_area_m2": inter_area,
+                "distance_to_room_m": dist,
+            })
+
+        records.sort(key=lambda rec: _sort_key(rec["wall"]))
+        return records
 
     @property
     def bounding_box(self) -> BoundingBox2D | None:
@@ -257,23 +348,71 @@ class Level(BaseModel):
     def add_opening(self, opening: Opening) -> "Level":
         return self.model_copy(update={"openings": (*self.openings, opening)})
 
+    def add_openings(self, openings) -> "Level":
+        """Add multiple openings in a single tuple rebuild."""
+        new_openings = tuple(openings)
+        return self.model_copy(
+            update={"openings": (*self.openings, *new_openings)}
+        )
+
     def add_column(self, column: Column) -> "Level":
         return self.model_copy(update={"columns": (*self.columns, column)})
+
+    def add_columns(self, columns) -> "Level":
+        """Add multiple columns in a single tuple rebuild."""
+        new_columns = tuple(columns)
+        return self.model_copy(
+            update={"columns": (*self.columns, *new_columns)}
+        )
 
     def add_staircase(self, staircase: Staircase) -> "Level":
         return self.model_copy(update={"staircases": (*self.staircases, staircase)})
 
+    def add_staircases(self, staircases) -> "Level":
+        """Add multiple staircases in a single tuple rebuild."""
+        new_stairs = tuple(staircases)
+        return self.model_copy(
+            update={"staircases": (*self.staircases, *new_stairs)}
+        )
+
     def add_slab(self, slab: Slab) -> "Level":
         return self.model_copy(update={"slabs": (*self.slabs, slab)})
+
+    def add_slabs(self, slabs) -> "Level":
+        """Add multiple slabs in a single tuple rebuild."""
+        new_slabs = tuple(slabs)
+        return self.model_copy(update={"slabs": (*self.slabs, *new_slabs)})
 
     def add_ramp(self, ramp: Ramp) -> "Level":
         return self.model_copy(update={"ramps": (*self.ramps, ramp)})
 
+    def add_ramps(self, ramps) -> "Level":
+        """Add multiple ramps in a single tuple rebuild."""
+        new_ramps = tuple(ramps)
+        return self.model_copy(update={"ramps": (*self.ramps, *new_ramps)})
+
     def add_beam(self, beam: Beam) -> "Level":
         return self.model_copy(update={"beams": (*self.beams, beam)})
 
+    def add_beams(self, beams) -> "Level":
+        """Add multiple beams in a single tuple rebuild."""
+        new_beams = tuple(beams)
+        return self.model_copy(update={"beams": (*self.beams, *new_beams)})
+
     def add_furniture(self, item: Furniture) -> "Level":
         return self.model_copy(update={"furniture": (*self.furniture, item)})
+
+    def add_furniture_items(self, items) -> "Level":
+        """Add multiple furniture items in a single tuple rebuild.
+
+        Named ``add_furniture_items`` (rather than the plural ``add_furnitures``)
+        because ``add_furniture`` is already used for the single-item form and
+        "furniture" is a mass noun.
+        """
+        new_items = tuple(items)
+        return self.model_copy(
+            update={"furniture": (*self.furniture, *new_items)}
+        )
 
     def add_text_annotation(self, annotation: TextAnnotation) -> "Level":
         return self.model_copy(

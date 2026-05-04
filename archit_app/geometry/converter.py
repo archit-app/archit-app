@@ -23,9 +23,7 @@ Example::
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING
-
-import numpy as np
+from typing import Any, TYPE_CHECKING
 
 from archit_app.geometry.crs import (
     CoordinateSystem,
@@ -36,7 +34,20 @@ from archit_app.geometry.crs import (
 from archit_app.geometry.transform import Transform2D
 
 if TYPE_CHECKING:
-    pass
+    import numpy as np  # noqa: F401
+
+
+# Lazy numpy — see archit_app.geometry.transform for rationale.
+_np_module: Any = None
+
+
+def _np() -> Any:
+    global _np_module
+    if _np_module is None:
+        import numpy as _np_imported
+
+        _np_module = _np_imported
+    return _np_module
 
 
 # ---------------------------------------------------------------------------
@@ -122,10 +133,10 @@ class CoordinateConverter:
 
     def convert(
         self,
-        points: np.ndarray,
+        points: Any,
         src: CoordinateSystem,
         dst: CoordinateSystem,
-    ) -> np.ndarray:
+    ) -> Any:
         """
         Convert an ``(N, 2)`` array of points from *src* to *dst*.
 
@@ -146,6 +157,7 @@ class CoordinateConverter:
             ConversionPathNotFoundError: If no registered path connects *src*
                 to *dst*.
         """
+        np = _np()
         pts = np.asarray(points, dtype=np.float64)
         if src == dst:
             return pts

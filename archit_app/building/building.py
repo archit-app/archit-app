@@ -95,6 +95,29 @@ class Building(BaseModel):
         sorted_levels = tuple(sorted((*existing, level), key=lambda lv: lv.index))
         return self.model_copy(update={"levels": sorted_levels})
 
+    def add_levels(self, levels) -> "Building":
+        """Add or replace multiple levels in a single tuple rebuild.
+
+        Mirrors :meth:`add_level` semantics: any existing level whose index
+        matches one of the supplied levels is replaced.  The resulting
+        ``levels`` tuple is sorted by index.
+        """
+        new_levels = tuple(levels)
+        new_indices = {lv.index for lv in new_levels}
+        existing = [lv for lv in self.levels if lv.index not in new_indices]
+        sorted_levels = tuple(
+            sorted((*existing, *new_levels), key=lambda lv: lv.index)
+        )
+        return self.model_copy(update={"levels": sorted_levels})
+
+    def replace_levels(self, levels) -> "Building":
+        """Replace the entire :attr:`levels` tuple in one operation.
+
+        The supplied levels are sorted by index before being stored.
+        """
+        sorted_levels = tuple(sorted(tuple(levels), key=lambda lv: lv.index))
+        return self.model_copy(update={"levels": sorted_levels})
+
     def remove_level(self, index: int) -> "Building":
         return self.model_copy(
             update={"levels": tuple(lv for lv in self.levels if lv.index != index)}

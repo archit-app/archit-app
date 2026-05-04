@@ -9,8 +9,22 @@ A general-purpose, extensible Python library for architectural floorplan design 
 pip install archit-app
 ```
 
+[![PyPI](https://img.shields.io/pypi/v/archit-app.svg)](https://pypi.org/project/archit-app/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## What's new in 0.5.0
+
+- **Typed error hierarchy** (`ArchitError`, `OverlapError`, `OutOfBoundsError`, `ElementNotFoundError`, `GeometryError`, `SessionError`) so downstream tools can render structured error payloads with `code`, `element_id`, and `hint`.
+- **Structured `validate(building)`** in `archit_app.analysis.validate` — returns a `list[Finding]` with severity, code, element id, message, and a paste-ready `fix_hint` per issue (orphan walls, room overlaps, missing perimeters, zero-length walls, orphan openings, duplicate walls).
+- **`Opening.swing_arc()`** and **`Opening.glazing_lines()`** in the geometry layer — every renderer now gets identical door-swing and window-glazing geometry.
+- **Polished SVG / PDF exports** — title block, scale bar, north arrow, per-room labels with areas, dimension chains on exterior walls, dashed swing arcs, and glazing lines, all in the brand palette (Void / Vellum / Blueprint / Datum).
+- **Per-Level Shapely cache** + **batch mutators** (`Level.add_openings`, `add_columns`, `add_beams`, `add_slabs`, `add_ramps`, `Building.add_levels`, `replace_levels`) — large-batch operations now do a single tuple rebuild.
+- **Lazy heavy imports** — `import archit_app` no longer pulls numpy/shapely at module load; geometry paths import them on first use.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
 
 ---
 
@@ -839,6 +853,12 @@ Full API reference and guides are in the [`docs/`](docs/) directory:
 | Architectural SVG furniture symbols | Done | 19 plan-view symbols per furniture category — beds, sofas, chairs, tables, bathroom fixtures, kitchen, storage — with parchment/wet-area colour scheme and internal detail lines |
 | Extended building validation | Done | `Building.validate()` now detects room overlaps (Shapely intersection) and door connectivity gaps (networkx) — every room must be reachable through doors |
 | **Floorplan Agent Protocol v1.0.0** | **Done** | Strict Pydantic inter-agent message layer — `FloorplanSnapshot`, `AgentHandoff`, `MutationEnvelope`, `ProtocolReport`, discriminated-union parse, 5 analysis adapters, JSON Schema export CLI |
+| **Typed error hierarchy (v0.5.0)** | **Done** | `ArchitError` base + `OverlapError`, `OutOfBoundsError`, `ElementNotFoundError`, `GeometryError`, `SessionError` — each with `code`, optional `element_id`, optional `hint` |
+| **Structured `validate(building)` (v0.5.0)** | **Done** | `archit_app.analysis.validate` returns `list[Finding]` with severity, code, element id, message, and paste-ready `fix_hint` |
+| **Opening render geometry (v0.5.0)** | **Done** | `Opening.swing_arc()` + `Opening.glazing_lines()` so every renderer (SVG / PDF / DXF / IFC) shares identical door-swing and glazing geometry |
+| **Polished SVG / PDF exports (v0.5.0)** | **Done** | Title block, scale bar, north arrow, per-room labels with areas, exterior dimension chains, dashed swing arcs, glazing lines — Void / Vellum / Blueprint / Datum palette |
+| **Lazy heavy imports + per-Level Shapely cache (v0.5.0)** | **Done** | `import archit_app` no longer pulls numpy/shapely; `Level.walls_for_room()` memoizes per immutable Level instance via `WeakKeyDictionary` |
+| **Batch mutators (v0.5.0)** | **Done** | `Level.add_openings`, `add_columns`, `add_beams`, `add_slabs`, `add_ramps`, `add_furniture_items`; `Building.add_levels`, `replace_levels` — single tuple rebuild for large batches |
 
 ---
 

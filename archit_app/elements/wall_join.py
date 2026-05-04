@@ -19,12 +19,26 @@ join_walls(walls)          → apply miter_join to all pairs that share an endpo
 from __future__ import annotations
 
 import math
-from typing import Sequence
-
-import shapely.geometry
+from typing import Any, Sequence, TYPE_CHECKING
 
 from archit_app.elements.wall import Wall
 from archit_app.geometry.polygon import Polygon2D
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    import shapely.geometry  # noqa: F401
+
+
+# Lazy shapely import so `import archit_app` doesn't pull shapely on cold paths.
+_shapely_geom_module: Any = None
+
+
+def _shapely_geom() -> Any:
+    global _shapely_geom_module
+    if _shapely_geom_module is None:
+        import shapely.geometry as _sg
+
+        _shapely_geom_module = _sg
+    return _shapely_geom_module
 
 
 # ---------------------------------------------------------------------------
@@ -99,14 +113,15 @@ def _half_plane_polygon(
     nx: float,
     ny: float,
     big: float = 1e6,
-) -> shapely.geometry.Polygon:
+) -> Any:
     """
     Return a large polygon covering the half-plane {x : (x-P)·n >= 0}.
 
     n = (nx, ny) is the inward normal of the clipping plane through P=(px,py).
     """
+    shapely_geometry = _shapely_geom()
     tx, ty = -ny, nx          # tangent along the clip line
-    return shapely.geometry.Polygon([
+    return shapely_geometry.Polygon([
         (px + nx * big + tx * big, py + ny * big + ty * big),
         (px + nx * big - tx * big, py + ny * big - ty * big),
         (px - tx * big,            py - ty * big),
@@ -114,11 +129,12 @@ def _half_plane_polygon(
     ])
 
 
-def _clip_wall_polygon(wall: Wall, clip: shapely.geometry.Polygon) -> Wall:
+def _clip_wall_polygon(wall: Wall, clip: Any) -> Wall:
     """Intersect wall's Polygon2D geometry with a Shapely polygon and return a new Wall."""
+    shapely_geometry = _shapely_geom()
     shp = wall.geometry._to_shapely()
     clipped = shp.intersection(clip)
-    if clipped.is_empty or not isinstance(clipped, shapely.geometry.Polygon):
+    if clipped.is_empty or not isinstance(clipped, shapely_geometry.Polygon):
         return wall   # fallback: return original if result is degenerate
     new_geom = Polygon2D._from_shapely(clipped, wall.geometry.crs)
     return wall.model_copy(update={"geometry": new_geom})

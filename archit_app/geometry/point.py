@@ -13,17 +13,30 @@ Operator algebra:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
-import numpy as np
 from pydantic import BaseModel
 
 from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
 from archit_app.geometry.vector import Vector2D, Vector3D
 
 if TYPE_CHECKING:
+    import numpy as np  # noqa: F401
     from archit_app.geometry.converter import CoordinateConverter
     from archit_app.geometry.transform import Transform2D
+
+
+# Lazy numpy — see archit_app.geometry.transform for rationale.
+_np_module: Any = None
+
+
+def _np() -> Any:
+    global _np_module
+    if _np_module is None:
+        import numpy as _np_imported
+
+        _np_module = _np_imported
+    return _np_module
 
 
 class Point2D(BaseModel, frozen=True):
@@ -82,7 +95,8 @@ class Point2D(BaseModel, frozen=True):
         result = t.apply_to_array(self.as_array().reshape(1, 2))
         return Point2D(x=float(result[0, 0]), y=float(result[0, 1]), crs=self.crs)
 
-    def as_array(self) -> np.ndarray:
+    def as_array(self) -> Any:
+        np = _np()
         return np.array([self.x, self.y], dtype=np.float64)
 
     def as_tuple(self) -> tuple[float, float]:
@@ -129,7 +143,8 @@ class Point3D(BaseModel, frozen=True):
             (self.x - other.x) ** 2 + (self.y - other.y) ** 2 + (self.z - other.z) ** 2
         )
 
-    def as_array(self) -> np.ndarray:
+    def as_array(self) -> Any:
+        np = _np()
         return np.array([self.x, self.y, self.z], dtype=np.float64)
 
     def as_2d(self) -> Point2D:

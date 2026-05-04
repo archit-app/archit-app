@@ -8,11 +8,28 @@ They transform differently from points (no translation applied).
 from __future__ import annotations
 
 import math
+from typing import Any, TYPE_CHECKING
 
-import numpy as np
 from pydantic import BaseModel, model_validator
 
 from archit_app.geometry.crs import CoordinateSystem, CRSMismatchError, WORLD, require_same_crs
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    import numpy as np  # noqa: F401
+
+
+# Lazy numpy import — keeps `import archit_app` cheap on cold paths that
+# never touch geometry. The first call to `as_array()` triggers the import.
+_np_module: Any = None
+
+
+def _np() -> Any:
+    global _np_module
+    if _np_module is None:
+        import numpy as _np_imported
+
+        _np_module = _np_imported
+    return _np_module
 
 
 class Vector2D(BaseModel, frozen=True):
@@ -67,7 +84,8 @@ class Vector2D(BaseModel, frozen=True):
         """Angle in radians from +X axis, in [-π, π]."""
         return math.atan2(self.y, self.x)
 
-    def as_array(self) -> np.ndarray:
+    def as_array(self) -> Any:
+        np = _np()
         return np.array([self.x, self.y], dtype=np.float64)
 
     # ------------------------------------------------------------------
@@ -133,7 +151,8 @@ class Vector3D(BaseModel, frozen=True):
             crs=self.crs,
         )
 
-    def as_array(self) -> np.ndarray:
+    def as_array(self) -> Any:
+        np = _np()
         return np.array([self.x, self.y, self.z], dtype=np.float64)
 
     def __add__(self, other: "Vector3D") -> "Vector3D":

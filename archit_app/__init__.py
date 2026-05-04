@@ -60,6 +60,14 @@ from archit_app.viewport import Viewport
 from archit_app.query import ElementQuery, query
 
 from archit_app.core.registry import register, get, list_registered, get_all
+from archit_app.core.errors import (
+    ArchitError,
+    OverlapError,
+    OutOfBoundsError,
+    ElementNotFoundError,
+    GeometryError,
+    SessionError,
+)
 
 from archit_app.units import (
     to_feet, to_inches, to_mm, to_cm,
@@ -161,6 +169,13 @@ __all__ = [
     "get",
     "list_registered",
     "get_all",
+    # Errors
+    "ArchitError",
+    "OverlapError",
+    "OutOfBoundsError",
+    "ElementNotFoundError",
+    "GeometryError",
+    "SessionError",
     # Unit conversion
     "to_feet",
     "to_inches",

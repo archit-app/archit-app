@@ -15,15 +15,33 @@ Design notes:
 from __future__ import annotations
 
 import functools
-from typing import Any, Iterable
+from typing import Any, Iterable, TYPE_CHECKING
 
-import shapely
-import shapely.geometry
 from pydantic import BaseModel, field_validator, model_serializer, model_validator
 
 from archit_app.geometry.bbox import BoundingBox2D
 from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
 from archit_app.geometry.point import Point2D
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    import shapely  # noqa: F401
+    import shapely.geometry  # noqa: F401
+
+
+# Lazy shapely import. Like the lazy numpy import in transform.py, this lets
+# `import archit_app` skip pulling in shapely (and its transitive geometry
+# stack) on cold paths that never construct or query a polygon.
+_shapely_module: Any = None
+
+
+def _shapely() -> Any:
+    global _shapely_module
+    if _shapely_module is None:
+        import shapely as _sp_imported
+        import shapely.geometry  # noqa: F401  # ensure submodule is wired up
+
+        _shapely_module = _sp_imported
+    return _shapely_module
 
 
 class Polygon2D(BaseModel, frozen=True):
@@ -81,13 +99,14 @@ class Polygon2D(BaseModel, frozen=True):
     # Shapely bridge (private, lazy)
     # ------------------------------------------------------------------
 
-    def _to_shapely(self) -> shapely.Polygon:
+    def _to_shapely(self) -> Any:
+        shapely = _shapely()
         exterior_coords = [(p.x, p.y) for p in self.exterior]
         holes_coords = [[(p.x, p.y) for p in h] for h in self.holes]
         return shapely.Polygon(exterior_coords, holes_coords)
 
     @classmethod
-    def _from_shapely(cls, poly: shapely.Polygon, crs: CoordinateSystem) -> "Polygon2D":
+    def _from_shapely(cls, poly: Any, crs: CoordinateSystem) -> "Polygon2D":
         if poly.is_empty:
             raise ValueError("Cannot create Polygon2D from empty shapely Polygon.")
         exterior = tuple(
@@ -134,6 +153,7 @@ class Polygon2D(BaseModel, frozen=True):
 
     def contains_point(self, p: Point2D) -> bool:
         require_same_crs(self.crs, p.crs, "contains_point")
+        shapely = _shapely()
         return self._to_shapely().contains(shapely.Point(p.x, p.y))
 
     def intersects(self, other: "Polygon2D") -> bool:
@@ -183,7 +203,7 @@ class Polygon2D(BaseModel, frozen=True):
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_shapely(cls, poly: shapely.Polygon, crs: CoordinateSystem = WORLD) -> "Polygon2D":
+    def from_shapely(cls, poly: Any, crs: CoordinateSystem = WORLD) -> "Polygon2D":
         return cls._from_shapely(poly, crs)
 
     @classmethod

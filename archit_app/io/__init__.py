@@ -34,6 +34,8 @@ from archit_app.io.geojson import (
     building_to_geojson_str,
     save_level_geojson,
     save_building_geojson,
+    level_from_geojson,
+    level_from_geojson_str,
 )
 
 __all__ = [
@@ -56,6 +58,8 @@ __all__ = [
     "building_to_geojson_str",
     "save_level_geojson",
     "save_building_geojson",
+    "level_from_geojson",
+    "level_from_geojson_str",
     # DXF (imported separately to avoid hard dependency)
     # from archit_app.io.dxf import save_building_dxf
     # IFC (imported separately to avoid hard dependency)

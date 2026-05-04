@@ -9,6 +9,17 @@ Welcome to the `archit_app` library documentation.
 
 `archit_app` is a general-purpose, extensible Python library for architectural floorplan design and analysis. It provides a clean, layered data model with full support for non-Manhattan geometry, multi-level buildings, and standard interchange formats.
 
+## What's new in 0.5.0
+
+- **Typed error hierarchy** — `ArchitError`, `OverlapError`, `OutOfBoundsError`, `ElementNotFoundError`, `GeometryError`, `SessionError`. See [`api/errors.md`](api/errors.md) (or `archit_app.core.errors`).
+- **Structured `validate(building)`** — `archit_app.analysis.validate` returns `list[Finding]` with severity, code, message, and paste-ready `fix_hint`.
+- **Opening render geometry** — `Opening.swing_arc()` and `Opening.glazing_lines()` derive door swing arcs and window glazing in the geometry layer; every renderer shares the same output.
+- **Polished SVG / PDF** — title block, scale bar, north arrow, room labels with areas, exterior dimension chains, swing arcs, glazing lines, brand palette.
+- **Lazy `numpy`/`shapely`** — `import archit_app` is now numpy/shapely-free at module load.
+- **Per-Level Shapely cache** + new batch mutators (`Level.add_openings`, `add_columns`, etc.; `Building.add_levels`, `replace_levels`).
+
+See the full [CHANGELOG](../CHANGELOG.md) for details.
+
 ## Contents
 
 ### Guides
@@ -33,7 +44,7 @@ Welcome to the `archit_app` library documentation.
 
 | | |
 |---|---|
-| Version | 0.4.0 |
+| Version | 0.5.0 |
 | Python | 3.11+ |
 | License | MIT |
 | Source | [github.com/archit-app/archit-app](https://github.com/archit-app/archit-app) |
