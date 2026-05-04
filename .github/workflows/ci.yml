@@ -1,0 +1,46 @@
+# Tier 1 hygiene — runs on every push to main and every PR.
+# Single matrix entry (Python 3.11 + ubuntu-latest) — keep it cheap.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (with all extras)
+        run: |
+          python -m pip install --upgrade pip
+          # All extras so tests don't silently skip on missing optional deps.
+          pip install -e ".[dev,io,ifc,image,pdf,analysis]"
+
+      - name: Lint (ruff)
+        run: ruff check archit_app tests
+
+      - name: Type check (mypy)
+        run: mypy archit_app
+        continue-on-error: true  # Drop this once pre-existing mypy noise is cleared.
+
+      - name: Test (pytest)
+        run: pytest -q
