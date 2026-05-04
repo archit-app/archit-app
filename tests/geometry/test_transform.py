@@ -1,7 +1,6 @@
 import math
 
 import numpy as np
-import pytest
 
 from archit_app import Transform2D
 

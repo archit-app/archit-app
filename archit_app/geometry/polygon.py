@@ -14,18 +14,19 @@ Design notes:
 
 from __future__ import annotations
 
-import functools
-from typing import Any, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, field_validator, model_serializer, model_validator
+from pydantic import BaseModel, model_serializer, model_validator
 
 from archit_app.geometry.bbox import BoundingBox2D
-from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
+from archit_app.geometry.crs import WORLD, CoordinateSystem, require_same_crs
 from archit_app.geometry.point import Point2D
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import shapely  # noqa: F401
     import shapely.geometry  # noqa: F401
+
+    from archit_app.geometry.transform import Transform2D  # noqa: F401
 
 
 # Lazy shapely import. Like the lazy numpy import in transform.py, this lets
@@ -85,7 +86,7 @@ class Polygon2D(BaseModel, frozen=True):
         # Support deserializing from the serialized dict format
         if isinstance(obj, dict) and "exterior" in obj:
             crs_name = obj.get("crs", "world")
-            from archit_app.geometry.crs import WORLD, SCREEN, IMAGE, WGS84
+            from archit_app.geometry.crs import IMAGE, SCREEN, WGS84, WORLD
             crs_map = {"world": WORLD, "screen": SCREEN, "image": IMAGE, "geographic": WGS84}
             crs = crs_map.get(crs_name, WORLD)
             exterior = tuple(Point2D(x=x, y=y, crs=crs) for x, y in obj["exterior"])
@@ -192,7 +193,6 @@ class Polygon2D(BaseModel, frozen=True):
         return Polygon2D._from_shapely(result, self.crs)
 
     def transformed(self, t: "Transform2D") -> "Polygon2D":
-        from archit_app.geometry.transform import Transform2D
 
         new_exterior = tuple(p.transformed(t) for p in self.exterior)
         new_holes = tuple(tuple(p.transformed(t) for p in h) for h in self.holes)

@@ -16,9 +16,7 @@ Implementation note:
 from __future__ import annotations
 
 import math
-from typing import Any, TYPE_CHECKING
-
-from pydantic import BaseModel, ConfigDict
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import numpy as np  # noqa: F401

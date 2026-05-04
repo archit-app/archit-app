@@ -1,11 +1,10 @@
 """Tests for the Furniture element."""
 
 import math
+
 import pytest
 
-from archit_app import Furniture, FurnitureCategory, Level, Polygon2D, WORLD
-from archit_app.geometry.point import Point2D
-
+from archit_app import WORLD, Furniture, FurnitureCategory, Level, Polygon2D
 
 # ---------------------------------------------------------------------------
 # Helpers

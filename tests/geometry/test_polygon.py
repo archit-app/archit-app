@@ -1,6 +1,6 @@
 import pytest
 
-from archit_app import WORLD, Point2D, Polygon2D, CRSMismatchError
+from archit_app import WORLD, Point2D, Polygon2D
 
 
 def square(size=4.0) -> Polygon2D:

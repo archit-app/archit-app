@@ -1,6 +1,7 @@
 """Tests for Opening.archway() and Opening.pass_through() factories."""
 
 import pytest
+
 from archit_app import Opening, OpeningKind
 
 

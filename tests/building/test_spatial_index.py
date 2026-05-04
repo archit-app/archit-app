@@ -12,8 +12,8 @@ except ImportError:
 
 _skip = pytest.mark.skipif(not _SHAPELY, reason="Shapely not installed")
 
-from archit_app import WORLD, Level, Room, Polygon2D, Wall
-from archit_app.elements.column import Column
+from archit_app import WORLD, Level, Polygon2D, Room, Wall  # noqa: E402
+from archit_app.elements.column import Column  # noqa: E402
 
 
 def _make_level() -> Level:

@@ -18,12 +18,12 @@ Covers:
 from __future__ import annotations
 
 import math
+
 import pytest
 
 from archit_app import WORLD, Point2D
-from archit_app.geometry.curve import NURBSCurve, BezierCurve
+from archit_app.geometry.curve import BezierCurve, NURBSCurve
 from archit_app.geometry.transform import Transform2D
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -35,7 +35,7 @@ Usage::
 from __future__ import annotations
 
 import time
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from archit_app.building.building import Building, BuildingMetadata
 from archit_app.building.level import Level
@@ -52,7 +52,6 @@ from archit_app.elements.wall import Wall
 from archit_app.geometry.crs import WORLD
 from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
-
 
 # ---------------------------------------------------------------------------
 # Dependency guard
@@ -534,7 +533,6 @@ def _export_staircase(f, stair: Staircase, context, owner_history,
     Geometry is a bounding-box polygon of the staircase footprint extruded
     by the total rise — a simplified but legally valid IFC representation.
     """
-    from archit_app.geometry.bbox import BoundingBox2D
 
     bb = stair.geometry.bounding_box()
     poly = Polygon2D.rectangle(
@@ -563,7 +561,6 @@ def _export_staircase(f, stair: Staircase, context, owner_history,
 def _export_ramp(f, ramp: Ramp, context, owner_history,
                  storey_placement, elevation: float):
     """Export a Ramp as IfcRamp with extruded footprint polygon."""
-    import math as _math
     profile = _polygon_to_2d_profile(f, ramp.boundary, "RampProfile")
     rise = ramp.total_rise
     solid = _extruded_solid(f, profile, depth=max(rise, 0.05), z_offset=0.0)
@@ -951,7 +948,6 @@ def _ifc_slab_to_slab(ifc_slab, storey_elev: float = 0.0) -> "Slab | None":
     elevation = storey_elev + z_bottom + thickness
 
     predefined = (getattr(ifc_slab, "PredefinedType", None) or "FLOOR").upper()
-    from archit_app.elements.slab import SlabType
     slab_type_map = {"FLOOR": SlabType.FLOOR, "ROOF": SlabType.ROOF, "CEILING": SlabType.CEILING}
     slab_type = slab_type_map.get(predefined, SlabType.FLOOR)
 

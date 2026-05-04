@@ -31,17 +31,15 @@ Level integration::
 
 from __future__ import annotations
 
-import math
 from typing import Literal
 
 from pydantic import model_validator
 
 from archit_app.elements.base import Element
-from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
+from archit_app.geometry.crs import WORLD, CoordinateSystem, require_same_crs
 from archit_app.geometry.point import Point2D
 from archit_app.geometry.primitives import Segment2D
 from archit_app.geometry.vector import Vector2D
-
 
 # ---------------------------------------------------------------------------
 # TextAnnotation

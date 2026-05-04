@@ -37,13 +37,16 @@ Typical flow:
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from archit_app.geometry.crs import WORLD, WGS84
+from archit_app.geometry.crs import WORLD
 from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
+
+if TYPE_CHECKING:
+    from archit_app.protocol.snapshot import ZoningSummary
 
 # ---------------------------------------------------------------------------
 # Constants

@@ -1,9 +1,10 @@
 """Tests for the Column element."""
 
 import math
+
 import pytest
 
-from archit_app import Column, ColumnShape, WORLD
+from archit_app import WORLD, Column, ColumnShape
 from archit_app.geometry.crs import SCREEN
 
 
@@ -102,8 +103,8 @@ class TestColumnShape:
         assert ColumnShape.CUSTOM.value == "custom"
 
     def test_custom_shape_via_direct_construction(self):
-        from archit_app.geometry.polygon import Polygon2D
         from archit_app.geometry.point import Point2D
+        from archit_app.geometry.polygon import Polygon2D
 
         pts = tuple(Point2D(x=x, y=y) for x, y in [(0,0),(1,0),(0.5,1)])
         poly = Polygon2D(exterior=pts)

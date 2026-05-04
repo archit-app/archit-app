@@ -1,14 +1,16 @@
 """Tests for TextAnnotation, DimensionLine, and SectionMark."""
 
-import math
 import pytest
 
 from archit_app import (
-    TextAnnotation, DimensionLine, SectionMark,
-    Level, Point2D, WORLD,
+    WORLD,
+    DimensionLine,
+    Level,
+    Point2D,
+    SectionMark,
+    TextAnnotation,
 )
 from archit_app.geometry.crs import SCREEN
-
 
 # ---------------------------------------------------------------------------
 # Helpers

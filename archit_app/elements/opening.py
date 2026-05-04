@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
 from archit_app.elements.base import Element
 from archit_app.geometry.curve import ArcCurve

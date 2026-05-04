@@ -40,7 +40,6 @@ from __future__ import annotations
 import math
 import re
 from collections import defaultdict
-from typing import Sequence
 
 from archit_app.building.building import Building, BuildingMetadata
 from archit_app.building.level import Level
@@ -50,7 +49,7 @@ from archit_app.elements.furniture import Furniture, FurnitureCategory
 from archit_app.elements.opening import Opening, OpeningKind
 from archit_app.elements.ramp import Ramp
 from archit_app.elements.room import Room
-from archit_app.elements.slab import Slab, SlabType
+from archit_app.elements.slab import Slab
 from archit_app.elements.staircase import Staircase
 from archit_app.elements.wall import Wall, WallType
 from archit_app.geometry.crs import WORLD
@@ -341,7 +340,7 @@ def building_to_dxf(building: Building):
         ]:
             layer_name = f"{prefix}FP_{suffix.split('_', 1)[-1]}"
             if layer_name not in doc.layers:
-                lyr = doc.layers.add(layer_name, color=color)
+                doc.layers.add(layer_name, color=color)
                 # Offset each level slightly in Z for 3D stacking visibility
                 # (DXF layer elevation is set per entity, not per layer)
 
@@ -490,7 +489,6 @@ def _polygons_to_level(
     for poly in polys_by_type.get(_TYPE_OPENINGS, []):
         bb = poly.bounding_box()
         width  = max(bb.width, 1e-3)
-        height = max(bb.height, 1e-3)
         opening = Opening(
             kind=OpeningKind.DOOR,
             geometry=poly,

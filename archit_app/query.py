@@ -30,16 +30,6 @@ from archit_app.geometry.bbox import BoundingBox2D
 if TYPE_CHECKING:
     from archit_app.building.level import Level
     from archit_app.elements.base import Element
-    from archit_app.elements.wall import Wall
-    from archit_app.elements.room import Room
-    from archit_app.elements.opening import Opening
-    from archit_app.elements.column import Column
-    from archit_app.elements.staircase import Staircase
-    from archit_app.elements.slab import Slab
-    from archit_app.elements.ramp import Ramp
-    from archit_app.elements.beam import Beam
-    from archit_app.elements.furniture import Furniture
-    from archit_app.elements.annotation import TextAnnotation, DimensionLine, SectionMark
 
 
 _MISSING = object()  # sentinel for optional value argument in tagged()

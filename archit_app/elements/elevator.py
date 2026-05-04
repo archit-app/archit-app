@@ -7,11 +7,12 @@ including the cab dimensions and a door position per served level.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 from archit_app.elements.base import Element
-from archit_app.geometry.crs import CoordinateSystem, WORLD
+from archit_app.geometry.crs import WORLD, CoordinateSystem
 from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
 

@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 import pytest
 
-import archit_app
 from archit_app import (
     WORLD,
     Building,
@@ -23,15 +22,14 @@ from archit_app import (
     Column,
     Level,
     Opening,
-    Polygon2D,
     Point2D,
+    Polygon2D,
     Room,
     Wall,
     WallType,
 )
 from archit_app.io.dxf import (
     building_from_dxf,
-    building_to_dxf,
     level_from_dxf,
     level_to_dxf,
     save_building_dxf,
@@ -252,7 +250,7 @@ class TestDxfRoundTrip:
         path = str(tmp_path / "building.dxf")
         save_building_dxf(building, path)
         imported = building_from_dxf(path, floor_elevation_step=3.0)
-        imp_sorted = sorted(imported.levels, key=lambda l: l.index)
+        imp_sorted = sorted(imported.levels, key=lambda lvl: lvl.index)
         assert imp_sorted[0].elevation == pytest.approx(0.0)
         assert imp_sorted[1].elevation == pytest.approx(3.0)
 
@@ -382,7 +380,6 @@ class TestDxfRoundTrip:
     # ------------------------------------------------------------------
 
     def test_staircase_roundtrip(self, tmp_path):
-        import math
         from archit_app import Staircase
         stair = Staircase.straight(x=0, y=0, width=1.2, rise_count=10,
                                     rise_height=0.175, run_depth=0.28,
@@ -415,6 +412,7 @@ class TestDxfRoundTrip:
 
     def test_ramp_roundtrip(self, tmp_path):
         import math
+
         from archit_app import Ramp
         ramp = Ramp.straight(x=0, y=0, width=1.5, length=3.6,
                               slope_angle=math.atan(1 / 12))

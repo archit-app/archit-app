@@ -14,13 +14,22 @@ from unittest.mock import patch
 import pytest
 
 from archit_app import (
-    WORLD, Building, BuildingMetadata, Column, Level,
-    Opening, Point2D, Polygon2D, Room, Wall, WallType,
+    WORLD,
+    Building,
+    BuildingMetadata,
+    Column,
+    Level,
+    Opening,
+    Point2D,
+    Polygon2D,
+    Room,
+    Wall,
+    WallType,
 )
 from archit_app.io.image import (
     level_to_png_bytes,
-    save_level_png,
     save_building_pngs,
+    save_level_png,
 )
 
 try:

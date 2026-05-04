@@ -31,7 +31,7 @@ from archit_app import (
     Wall,
     WallType,
 )
-from archit_app.io.ifc import save_building_ifc, building_to_ifc, building_from_ifc, level_from_ifc
+from archit_app.io.ifc import building_from_ifc, building_to_ifc, level_from_ifc, save_building_ifc
 
 try:
     import ifcopenshell as _ifcopenshell
@@ -456,8 +456,8 @@ class TestIfcImport:
 
     def test_import_guard_raises(self, tmp_path):
         """building_from_ifc must raise ImportError when ifcopenshell is absent."""
-        from unittest.mock import patch
         import sys
+        from unittest.mock import patch
         path = str(tmp_path / "dummy.ifc")
         with patch.dict(sys.modules, {"ifcopenshell": None, "ifcopenshell.guid": None}):
             with pytest.raises(ImportError, match="ifcopenshell"):

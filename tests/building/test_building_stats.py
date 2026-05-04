@@ -1,9 +1,16 @@
 """Tests for Building.stats() and Level.replace_element()."""
 
 import pytest
+
 from archit_app import (
-    Building, Level, Wall, Room, Column, Furniture,
-    Polygon2D, WORLD, BuildingStats,
+    WORLD,
+    Building,
+    BuildingStats,
+    Furniture,
+    Level,
+    Polygon2D,
+    Room,
+    Wall,
 )
 
 

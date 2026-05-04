@@ -1,6 +1,15 @@
 import pytest
 
-from archit_app import WORLD, SCREEN, IMAGE, WGS84, CoordinateSystem, CRSMismatchError, LengthUnit, YDirection
+from archit_app import (
+    IMAGE,
+    SCREEN,
+    WGS84,
+    WORLD,
+    CoordinateSystem,
+    CRSMismatchError,
+    LengthUnit,
+    YDirection,
+)
 
 
 def test_singletons_exist():

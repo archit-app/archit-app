@@ -1,7 +1,8 @@
 """Tests for analysis.area — area program validation."""
 
 import pytest
-from archit_app import Building, Level, Room, Point2D, Polygon2D, WORLD
+
+from archit_app import WORLD, Building, Level, Polygon2D, Room
 from archit_app.analysis.area import (
     AreaTarget,
     area_by_program,

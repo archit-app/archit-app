@@ -25,7 +25,6 @@ from archit_app.elements.opening import Opening, OpeningKind
 from archit_app.elements.room import Room
 from archit_app.elements.wall import Wall
 from archit_app.geometry.bbox import BoundingBox2D
-from archit_app.geometry.curve import ArcCurve, BezierCurve, NURBSCurve
 from archit_app.geometry.point import Point2D
 from archit_app.geometry.polygon import Polygon2D
 
@@ -274,7 +273,8 @@ def _fr(g: ET.Element, x: float, y: float, w: float, h: float,
         "fill": fill, "stroke": stroke, "stroke-width": f"{sw:.2f}",
     }
     if rx:
-        a["rx"] = f"{rx:.2f}"; a["ry"] = f"{rx:.2f}"
+        a["rx"] = f"{rx:.2f}"
+        a["ry"] = f"{rx:.2f}"
     ET.SubElement(g, "rect", a)
 
 

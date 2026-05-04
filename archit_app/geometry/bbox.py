@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Iterable
 
 from pydantic import BaseModel, model_validator
 
-from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
+from archit_app.geometry.crs import CoordinateSystem, require_same_crs
 from archit_app.geometry.point import Point2D, Point3D
 
 if TYPE_CHECKING:

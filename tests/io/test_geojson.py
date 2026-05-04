@@ -4,13 +4,13 @@ import json
 
 import pytest
 
-from archit_app import Level, WORLD, Polygon2D, Room, Wall, WallType, Column
+from archit_app import Level
 from archit_app.io.geojson import (
-    level_to_geojson,
     building_to_geojson,
-    level_to_geojson_str,
     level_from_geojson,
     level_from_geojson_str,
+    level_to_geojson,
+    level_to_geojson_str,
 )
 
 

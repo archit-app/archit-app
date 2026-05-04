@@ -1,7 +1,6 @@
 """Tests for room-from-walls auto-detection."""
 
-import pytest
-from archit_app import Wall, Room, Level, Polygon2D, WORLD
+from archit_app import Level, Room, Wall
 from archit_app.analysis.roomfinder import find_rooms, rooms_from_walls
 
 

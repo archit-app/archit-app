@@ -1,8 +1,8 @@
 """Tests for Viewport — view-state model."""
 
-import math
 import pytest
-from archit_app import Viewport, WORLD
+
+from archit_app import WORLD, Viewport
 from archit_app.geometry.bbox import BoundingBox2D
 from archit_app.geometry.point import Point2D
 

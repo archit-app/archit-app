@@ -1,14 +1,12 @@
 """Tests for accessibility analysis."""
 
 import math
-import pytest
-from archit_app import Level, Wall, Room, Opening, Ramp, Polygon2D, WORLD
+
+from archit_app import WORLD, Level, Opening, Polygon2D, Ramp, Room, Wall
 from archit_app.analysis.accessibility import (
-    check_accessibility,
-    AccessibilityReport,
-    AccessibilityCheck,
     MIN_DOOR_WIDTH_M,
-    MAX_RAMP_SLOPE_RAD,
+    AccessibilityReport,
+    check_accessibility,
 )
 
 

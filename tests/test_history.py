@@ -1,7 +1,8 @@
 """Tests for History — immutable undo/redo stack."""
 
 import pytest
-from archit_app import Building, Level, Wall, History
+
+from archit_app import Building, History, Level
 from archit_app.history import HistoryError
 
 

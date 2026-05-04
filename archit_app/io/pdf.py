@@ -25,7 +25,6 @@ Usage::
 from __future__ import annotations
 
 import io
-import math
 
 from archit_app.building.building import Building
 from archit_app.building.level import Level
@@ -33,16 +32,15 @@ from archit_app.elements.opening import OpeningKind
 from archit_app.geometry.bbox import BoundingBox2D
 from archit_app.geometry.point import Point2D
 
-
 # ---------------------------------------------------------------------------
 # Optional dependency guard
 # ---------------------------------------------------------------------------
 
 def _require_reportlab():
     try:
-        from reportlab.pdfgen import canvas as rl_canvas
         from reportlab.lib import colors as rl_colors
-        from reportlab.lib.pagesizes import A4, A3, A2, A1, letter
+        from reportlab.lib.pagesizes import A1, A2, A3, A4, letter
+        from reportlab.pdfgen import canvas as rl_canvas
         return rl_canvas, rl_colors, {"A1": A1, "A2": A2, "A3": A3, "A4": A4, "letter": letter}
     except ImportError:
         raise ImportError(
@@ -364,7 +362,6 @@ def _render_dimensions(c, level: Level, vt: _VT, font_size: float) -> None:
 
 
 def _render_section_marks(c, level: Level, vt: _VT, font_size: float) -> None:
-    import math as _math
     for mark in level.section_marks:
         cl = mark.cut_line
         sx_s, sy_s = vt.pt(cl.start)
@@ -744,7 +741,6 @@ def _render_door_swings(c, level: Level, vt: _VT) -> None:
 
 
 def _render_room_labels_polished(c, level: Level, vt: _VT) -> None:
-    import math as _math
     for room in level.rooms:
         try:
             area = room.area

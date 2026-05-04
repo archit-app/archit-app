@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 
 from archit_app import (
+    WORLD,
     Building,
     BuildingMetadata,
     Level,
     Point2D,
     Polygon2D,
     Room,
-    WORLD,
 )
 
 

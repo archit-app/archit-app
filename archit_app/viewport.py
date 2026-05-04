@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from archit_app.geometry.bbox import BoundingBox2D
 from archit_app.geometry.converter import CoordinateConverter, build_default_converter
-from archit_app.geometry.crs import SCREEN, WORLD
+from archit_app.geometry.crs import WORLD
 from archit_app.geometry.point import Point2D
 
 if TYPE_CHECKING:

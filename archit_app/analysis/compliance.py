@@ -15,11 +15,7 @@ Checks performed (when zoning data is available)
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-
-import shapely.geometry
-import shapely.ops
 
 
 @dataclass

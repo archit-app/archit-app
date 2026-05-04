@@ -7,15 +7,14 @@ import pytest
 from archit_app import (
     WORLD,
     Building,
+    Furniture,
     Layer,
     Level,
-    Room,
     Polygon2D,
+    Room,
     Wall,
-    Furniture,
 )
 from archit_app.io.svg import level_to_svg
-
 
 # ---------------------------------------------------------------------------
 # Layer model

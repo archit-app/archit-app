@@ -2,45 +2,42 @@
 
 import json
 import math
-import tempfile
 import os
+import tempfile
 
 import pytest
 
 from archit_app import (
     WORLD,
+    ArcCurve,
+    Beam,
+    BezierCurve,
     Building,
     BuildingMetadata,
+    Column,
+    DimensionLine,
+    Furniture,
     Level,
-    Opening,
     OpeningKind,
     Point2D,
     Polygon2D,
+    Ramp,
     Room,
-    Wall,
-    WallType,
-    Column,
-    ArcCurve,
-    BezierCurve,
-    Staircase,
+    SectionMark,
     Slab,
     SlabType,
-    Ramp,
-    Beam,
-    Furniture,
+    Staircase,
     TextAnnotation,
-    DimensionLine,
-    SectionMark,
+    Wall,
 )
+from archit_app.building.grid import StructuralGrid
 from archit_app.elements.elevator import Elevator
-from archit_app.building.grid import StructuralGrid, GridAxis
 from archit_app.io.json_schema import (
-    building_to_dict,
-    building_from_dict,
-    building_to_json,
     building_from_json,
-    save_building,
+    building_to_dict,
+    building_to_json,
     load_building,
+    save_building,
 )
 
 
@@ -228,9 +225,6 @@ def test_tags_roundtrip():
 # ---------------------------------------------------------------------------
 
 
-import math as _math
-
-
 def test_staircase_roundtrip():
     stair = Staircase.straight(
         x=0, y=0, width=1.2, rise_count=12,
@@ -260,7 +254,7 @@ def test_slab_roundtrip():
 
 def test_ramp_roundtrip():
     ramp = Ramp.straight(x=0, y=0, width=1.5, length=3.6,
-                          slope_angle=_math.atan(1 / 12))
+                          slope_angle=math.atan(1 / 12))
     level = Level(index=0, elevation=0.0, floor_height=3.0).add_ramp(ramp)
     b = Building().add_level(level)
     restored = _roundtrip(b)

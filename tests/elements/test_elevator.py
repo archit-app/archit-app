@@ -1,6 +1,6 @@
 import pytest
 
-from archit_app import Elevator, ElevatorDoor, Point2D, WORLD
+from archit_app import WORLD, Elevator, ElevatorDoor, Point2D
 
 
 def test_rectangular_factory():

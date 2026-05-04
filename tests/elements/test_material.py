@@ -1,6 +1,7 @@
 """Tests for Material and MaterialLibrary."""
 
 import pytest
+
 from archit_app import Material, MaterialCategory, MaterialLibrary, default_library
 from archit_app.elements.material import BUILTIN_MATERIALS
 
@@ -152,7 +153,7 @@ class TestMaterialInSVG:
     """Verify that material_library parameter influences SVG fill colours."""
 
     def test_wall_material_color_in_svg(self):
-        from archit_app import WORLD, Level, Room, Polygon2D, Wall, MaterialLibrary
+        from archit_app import WORLD, Level, MaterialLibrary, Polygon2D, Room, Wall
         from archit_app.io.svg import level_to_svg
 
         lib = MaterialLibrary(include_builtins=False)
@@ -172,7 +173,7 @@ class TestMaterialInSVG:
         assert "#0055BF" in svg
 
     def test_no_material_uses_default_palette_color(self):
-        from archit_app import WORLD, Level, Room, Polygon2D, Wall, MaterialLibrary
+        from archit_app import WORLD, Level, MaterialLibrary, Polygon2D, Room, Wall
         from archit_app.io.svg import level_to_svg
 
         lib = MaterialLibrary()

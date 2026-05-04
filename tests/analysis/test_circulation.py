@@ -1,13 +1,12 @@
 """Tests for analysis.circulation — egress path finding."""
 
-import pytest
-from archit_app import Level, Room, Point2D, Polygon2D, WORLD
-from archit_app.analysis.topology import build_adjacency_graph
+from archit_app import WORLD, Level, Polygon2D, Room
 from archit_app.analysis.circulation import (
-    find_egress_path,
     egress_distance_m,
     egress_report,
+    find_egress_path,
 )
+from archit_app.analysis.topology import build_adjacency_graph
 
 
 def _rect_room(x, y, w, h, name="", program=""):

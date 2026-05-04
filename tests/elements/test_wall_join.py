@@ -1,8 +1,7 @@
 import pytest
 
-from archit_app import Wall, WallType, miter_join, butt_join, join_walls
+from archit_app import Wall, WallType, butt_join, join_walls, miter_join
 from archit_app.geometry.polygon import Polygon2D
-
 
 # ---------------------------------------------------------------------------
 # Helpers

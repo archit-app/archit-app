@@ -1,13 +1,13 @@
 """Tests for Segment2D, Ray2D, Line2D, and Polyline2D."""
 
 import math
+
 import pytest
 
-from archit_app.geometry.crs import WORLD, SCREEN, CRSMismatchError
+from archit_app.geometry.crs import SCREEN, WORLD
 from archit_app.geometry.point import Point2D
+from archit_app.geometry.primitives import Line2D, Polyline2D, Ray2D, Segment2D
 from archit_app.geometry.vector import Vector2D
-from archit_app.geometry.primitives import Segment2D, Ray2D, Line2D, Polyline2D
-
 
 # ---------------------------------------------------------------------------
 # Helpers

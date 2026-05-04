@@ -1,7 +1,6 @@
-import math
 import pytest
 
-from archit_app import StructuralGrid, GridAxis, Point2D, WORLD
+from archit_app import WORLD, GridAxis, Point2D, StructuralGrid
 
 
 @pytest.fixture

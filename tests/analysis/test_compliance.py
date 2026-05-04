@@ -1,12 +1,18 @@
 """Tests for analysis.compliance — zoning compliance checker."""
 
 import pytest
+
 from archit_app import (
-    Building, BuildingMetadata, Level, Room,
-    Land, Setbacks, ZoningInfo,
-    Point2D, Polygon2D, WORLD,
+    WORLD,
+    Building,
+    Land,
+    Level,
+    Polygon2D,
+    Room,
+    Setbacks,
+    ZoningInfo,
 )
-from archit_app.analysis.compliance import check_compliance, ComplianceReport
+from archit_app.analysis.compliance import check_compliance
 
 
 def _rect_room(x, y, w, h, program="office"):

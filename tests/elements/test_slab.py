@@ -1,6 +1,6 @@
 import pytest
 
-from archit_app import Slab, SlabType, Polygon2D, Point2D, WORLD
+from archit_app import WORLD, Polygon2D, Slab, SlabType
 
 
 def test_rectangular_factory():

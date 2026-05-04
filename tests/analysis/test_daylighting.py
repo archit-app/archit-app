@@ -1,18 +1,21 @@
 """Tests for analysis.daylighting — solar orientation analysis."""
 
-import math
 import pytest
+
 from archit_app import (
-    Level, Room, Wall, Opening, OpeningKind,
-    Point2D, Polygon2D, WORLD,
+    WORLD,
+    Level,
+    Opening,
+    Polygon2D,
+    Room,
+    Wall,
 )
 from archit_app.analysis.daylighting import (
-    daylight_report,
-    RoomDaylightResult,
-    _wall_normal_angle_deg,
-    _solar_score,
     _compass_to_cardinal,
     _normal_to_compass,
+    _solar_score,
+    _wall_normal_angle_deg,
+    daylight_report,
 )
 
 
@@ -103,7 +106,7 @@ class TestDaylightReport:
     def test_north_angle_affects_compass(self):
         """Rotating north_angle by 90° should shift compass bearing by 90°."""
         wall = Wall.straight(0, 0, 5, 0, thickness=0.2, height=3.0)
-        from archit_app.analysis.daylighting import _wall_normal_angle_deg, _normal_to_compass
+        from archit_app.analysis.daylighting import _wall_normal_angle_deg
         normal = _wall_normal_angle_deg(wall)
         compass_0 = _normal_to_compass(normal, north_angle_deg=0.0)
         compass_90 = _normal_to_compass(normal, north_angle_deg=90.0)

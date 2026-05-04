@@ -23,13 +23,13 @@ Example::
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from archit_app.geometry.crs import (
-    CoordinateSystem,
     IMAGE,
     SCREEN,
     WORLD,
+    CoordinateSystem,
 )
 from archit_app.geometry.transform import Transform2D
 

@@ -12,14 +12,12 @@ from archit_app import (
     Building,
     BuildingMetadata,
     Level,
-    Room,
     Polygon2D,
-    Wall,
-    ValidationReport,
-    ValidationIssue,
+    Room,
     Staircase,
+    ValidationReport,
+    Wall,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

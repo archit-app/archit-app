@@ -1,12 +1,12 @@
-from archit_app.core.registry import register, get, list_registered, get_all
 from archit_app.core.errors import (
     ArchitError,
-    OverlapError,
-    OutOfBoundsError,
     ElementNotFoundError,
     GeometryError,
+    OutOfBoundsError,
+    OverlapError,
     SessionError,
 )
+from archit_app.core.registry import get, get_all, list_registered, register
 
 __all__ = [
     "register",

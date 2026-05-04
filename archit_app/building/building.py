@@ -8,7 +8,7 @@ many Level objects indexed by floor number.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,6 +19,9 @@ from archit_app.building.layer import Layer
 from archit_app.building.level import Level
 from archit_app.elements.base import Element
 from archit_app.elements.elevator import Elevator
+
+if TYPE_CHECKING:
+    from archit_app.protocol.snapshot import BudgetHints, FloorplanSnapshot
 
 
 class BuildingMetadata(BaseModel):
@@ -402,7 +405,6 @@ class Building(BaseModel):
         stats = self.stats()
         levels_summary = []
         for lv in self.levels:
-            room_programs = [r.program for r in lv.rooms if r.program]
             levels_summary.append({
                 "index": lv.index,
                 "name": lv.name or f"Level {lv.index}",
@@ -599,7 +601,10 @@ class Building(BaseModel):
                     issues.append(ValidationIssue(
                         severity="error",
                         element_id=room.id,
-                        message=f"Room '{room.name or room.id}' on level {lv.index} has zero or negative area ({room.area:.4f} m²).",
+                        message=(
+                            f"Room '{room.name or room.id}' on level {lv.index} has zero "
+                            f"or negative area ({room.area:.4f} m²)."
+                        ),
                     ))
 
             # --- Walls ---
@@ -665,8 +670,9 @@ class Building(BaseModel):
 
         # --- Door/opening connectivity check (requires networkx + shapely) ---
         try:
-            from archit_app.analysis.topology import build_adjacency_graph
             import networkx as nx
+
+            from archit_app.analysis.topology import build_adjacency_graph
 
             for lv in self.levels:
                 if len(lv.rooms) < 2:

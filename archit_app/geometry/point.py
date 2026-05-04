@@ -13,15 +13,16 @@ Operator algebra:
 from __future__ import annotations
 
 import math
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
+from archit_app.geometry.crs import WORLD, CoordinateSystem, require_same_crs
 from archit_app.geometry.vector import Vector2D, Vector3D
 
 if TYPE_CHECKING:
     import numpy as np  # noqa: F401
+
     from archit_app.geometry.converter import CoordinateConverter
     from archit_app.geometry.transform import Transform2D
 

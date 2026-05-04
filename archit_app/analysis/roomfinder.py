@@ -27,16 +27,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from archit_app.elements.wall import Wall
     from archit_app.elements.room import Room
+    from archit_app.elements.wall import Wall
     from archit_app.geometry.polygon import Polygon2D
 
 
 def _wall_to_shapely(wall: "Wall"):
     """Convert a wall's geometry to a Shapely geometry for polygonization."""
-    import math
-    from archit_app.geometry.polygon import Polygon2D as P2D
     from archit_app.geometry.curve import ArcCurve, BezierCurve, NURBSCurve
+    from archit_app.geometry.polygon import Polygon2D as P2D
 
     geom = wall.geometry
 
@@ -77,16 +76,15 @@ def find_rooms(
     """
     try:
         from shapely.ops import polygonize, unary_union
-        from shapely.geometry import MultiPolygon
     except ImportError as e:
         raise ImportError(
             "shapely is required for room detection. "
             "It should be installed with archit-app by default."
         ) from e
 
-    from archit_app.geometry.polygon import Polygon2D
-    from archit_app.geometry.point import Point2D
     from archit_app.geometry.crs import WORLD
+    from archit_app.geometry.point import Point2D
+    from archit_app.geometry.polygon import Polygon2D
 
     if not walls:
         return []

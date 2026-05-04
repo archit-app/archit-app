@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from archit_app.geometry.crs import CoordinateSystem, WORLD
+from archit_app.geometry.crs import WORLD, CoordinateSystem
 from archit_app.geometry.transform import Transform2D
 
 

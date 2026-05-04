@@ -37,9 +37,6 @@ from uuid import UUID
 
 import shapely.geometry
 
-from archit_app.elements.opening import OpeningKind
-from archit_app.geometry.polygon import Polygon2D
-
 _ADJACENCY_BUFFER_M = 0.4
 
 

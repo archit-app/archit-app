@@ -9,20 +9,22 @@ Each renderer (SVG always available; PDF/PNG guarded by optional deps).
 from __future__ import annotations
 
 import math
-import sys
-from unittest.mock import patch
 
 import pytest
 
 from archit_app import (
-    WORLD, Level, Wall, Room, Polygon2D,
-    Furniture, Ramp,
+    WORLD,
+    Furniture,
+    Level,
+    Polygon2D,
+    Ramp,
+    Room,
+    Wall,
 )
+from archit_app.elements.annotation import DimensionLine, SectionMark, TextAnnotation
 from archit_app.elements.beam import Beam
-from archit_app.elements.annotation import TextAnnotation, DimensionLine, SectionMark
-from archit_app.elements.staircase import Staircase
 from archit_app.elements.slab import Slab, SlabType
-from archit_app.geometry.point import Point2D
+from archit_app.elements.staircase import Staircase
 from archit_app.io.svg import level_to_svg
 
 try:

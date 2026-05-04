@@ -16,7 +16,6 @@ Usage:
 from __future__ import annotations
 
 import json
-import math
 from typing import Any
 from uuid import UUID
 
@@ -38,11 +37,9 @@ from archit_app.elements.wall import Wall, WallType
 from archit_app.geometry.crs import (
     IMAGE,
     SCREEN,
-    WORLD,
     WGS84,
+    WORLD,
     CoordinateSystem,
-    LengthUnit,
-    YDirection,
 )
 from archit_app.geometry.curve import ArcCurve, BezierCurve, NURBSCurve
 from archit_app.geometry.point import Point2D
@@ -213,7 +210,12 @@ def _ser_frame(frame: Frame | None) -> dict[str, Any] | None:
 def _des_frame(data: dict[str, Any] | None) -> Frame | None:
     if data is None:
         return None
-    return Frame(width=data["width"], depth=data.get("depth", 0.0), material=data.get("material"), **_des_base_kwargs(data))
+    return Frame(
+        width=data["width"],
+        depth=data.get("depth", 0.0),
+        material=data.get("material"),
+        **_des_base_kwargs(data),
+    )
 
 
 def _ser_swing(swing: SwingGeometry | None) -> dict[str, Any] | None:

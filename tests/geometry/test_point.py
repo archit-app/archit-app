@@ -1,6 +1,6 @@
 import pytest
 
-from archit_app import WORLD, SCREEN, Point2D, Point3D, Vector2D, CRSMismatchError, Transform2D
+from archit_app import SCREEN, WORLD, CRSMismatchError, Point2D, Point3D, Transform2D, Vector2D
 
 
 def test_point_add_vector():
@@ -68,7 +68,6 @@ def test_point_transformed():
 
 
 def test_point_as_array():
-    import numpy as np
     p = Point2D(x=1.5, y=2.5, crs=WORLD)
     arr = p.as_array()
     assert arr.shape == (2,)

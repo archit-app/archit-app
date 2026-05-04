@@ -1,15 +1,22 @@
 """Tests for analysis.visibility — isovist computation."""
 
 import math
+
 import pytest
+
 from archit_app import (
-    Level, Room, Wall, Point2D, Polygon2D, WORLD,
+    WORLD,
+    Level,
+    Point2D,
+    Polygon2D,
+    Room,
+    Wall,
 )
 from archit_app.analysis.visibility import (
-    compute_isovist,
-    visible_area_m2,
-    mutual_visibility,
     IsovistResult,
+    compute_isovist,
+    mutual_visibility,
+    visible_area_m2,
 )
 
 

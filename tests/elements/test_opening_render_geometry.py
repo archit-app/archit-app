@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from archit_app import Opening, OpeningKind, Point2D, Wall
+from archit_app import Opening, Point2D, Wall
 
 
 def _make_wall_with_door(position: float = 0.5) -> tuple[Wall, Opening]:

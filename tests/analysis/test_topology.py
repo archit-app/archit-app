@@ -1,16 +1,20 @@
 """Tests for analysis.topology — room adjacency graph."""
 
 import pytest
+
 from archit_app import (
-    Level, Room, Wall, Opening, OpeningKind,
-    Point2D, Polygon2D, WORLD,
+    WORLD,
+    Level,
+    Opening,
+    Polygon2D,
+    Room,
+    Wall,
 )
 from archit_app.analysis.topology import (
     build_adjacency_graph,
-    rooms_adjacent_to,
     connected_components,
+    rooms_adjacent_to,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

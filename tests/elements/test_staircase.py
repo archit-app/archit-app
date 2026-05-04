@@ -1,7 +1,8 @@
 import math
+
 import pytest
 
-from archit_app import Staircase, StaircaseType, WORLD
+from archit_app import Staircase, StaircaseType
 
 
 def test_straight_factory_returns_staircase():

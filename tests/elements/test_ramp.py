@@ -1,4 +1,5 @@
 import math
+
 import pytest
 
 from archit_app import Ramp, RampType

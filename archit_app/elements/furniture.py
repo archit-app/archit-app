@@ -24,14 +24,11 @@ residential values; override via keyword arguments as needed.
 
 from __future__ import annotations
 
-import math
 from enum import Enum
 
 from archit_app.elements.base import Element
-from archit_app.geometry.crs import CoordinateSystem, WORLD
-from archit_app.geometry.point import Point2D
+from archit_app.geometry.crs import WORLD, CoordinateSystem
 from archit_app.geometry.polygon import Polygon2D
-
 
 # ---------------------------------------------------------------------------
 # Category enum

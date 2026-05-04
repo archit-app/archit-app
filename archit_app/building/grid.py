@@ -19,7 +19,7 @@ import math
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from archit_app.geometry.crs import CoordinateSystem, WORLD
+from archit_app.geometry.crs import WORLD, CoordinateSystem
 from archit_app.geometry.point import Point2D
 from archit_app.geometry.vector import Vector2D
 

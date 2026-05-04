@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from archit_app.analysis.topology import build_adjacency_graph, _require_networkx
+from archit_app.analysis.topology import _require_networkx, build_adjacency_graph
 
 
 def find_egress_path(

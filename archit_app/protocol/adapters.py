@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from archit_app.protocol.refs import ElementRef
 from archit_app.protocol.report import (
     ProtocolCheck,
     ProtocolReport,
     Severity,
     Suggestion,
 )
-from archit_app.protocol.refs import ElementRef
 
 
 def _room_ref(room_id: Any, level_index: int | None) -> ElementRef:

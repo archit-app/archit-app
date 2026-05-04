@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Union
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
 from archit_app.elements.base import Element
 from archit_app.elements.opening import Opening
@@ -213,7 +213,6 @@ class Wall(Element):
 
         from archit_app.geometry.crs import WORLD
         from archit_app.geometry.point import Point2D
-        from archit_app.geometry.vector import Vector2D
 
         dx, dy = x2 - x1, y2 - y1
         length = math.sqrt(dx * dx + dy * dy)

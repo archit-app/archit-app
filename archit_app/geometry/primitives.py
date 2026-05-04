@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, field_validator, model_validator
 
-from archit_app.geometry.crs import CoordinateSystem, WORLD, require_same_crs
+from archit_app.geometry.crs import WORLD, CoordinateSystem, require_same_crs
 from archit_app.geometry.point import Point2D
 from archit_app.geometry.vector import Vector2D
 

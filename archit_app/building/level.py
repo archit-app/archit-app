@@ -11,6 +11,19 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict
 
+from archit_app.elements.annotation import DimensionLine, SectionMark, TextAnnotation
+from archit_app.elements.base import Element
+from archit_app.elements.beam import Beam
+from archit_app.elements.column import Column
+from archit_app.elements.furniture import Furniture
+from archit_app.elements.opening import Opening
+from archit_app.elements.ramp import Ramp
+from archit_app.elements.room import Room
+from archit_app.elements.slab import Slab
+from archit_app.elements.staircase import Staircase
+from archit_app.elements.wall import Wall
+from archit_app.geometry.bbox import BoundingBox2D
+
 # Module-level Shapely cache, keyed weakly on Level instances.  When a Level is
 # garbage-collected (which happens automatically after each immutable mutation
 # produces a fresh instance), its cache entry is dropped — so cached polygons
@@ -30,19 +43,6 @@ def _level_shapely_cache(level: "Level") -> dict:
         cache = {"rooms": {}, "walls": {}}
         _SHAPELY_CACHE[level] = cache
     return cache
-
-from archit_app.elements.annotation import DimensionLine, SectionMark, TextAnnotation
-from archit_app.elements.base import Element
-from archit_app.elements.beam import Beam
-from archit_app.elements.column import Column
-from archit_app.elements.furniture import Furniture
-from archit_app.elements.opening import Opening
-from archit_app.elements.ramp import Ramp
-from archit_app.elements.room import Room
-from archit_app.elements.slab import Slab
-from archit_app.elements.staircase import Staircase
-from archit_app.elements.wall import Wall
-from archit_app.geometry.bbox import BoundingBox2D
 
 
 class Level(BaseModel):
@@ -201,8 +201,8 @@ class Level(BaseModel):
             If Shapely is not installed.
         """
         try:
-            from shapely.geometry import box as shp_box
             from shapely.geometry import Polygon as ShpPolygon
+            from shapely.geometry import box as shp_box
         except ImportError:
             raise ImportError(
                 "Shapely is required for walls_for_room. "

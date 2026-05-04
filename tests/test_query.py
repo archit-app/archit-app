@@ -1,19 +1,25 @@
 """Tests for the ElementQuery / query() selection system."""
 
 import pytest
+
 from archit_app import (
-    Level, Wall, Room, Opening, Column, Furniture,
-    Polygon2D, WORLD, query,
+    WORLD,
+    Column,
+    Furniture,
+    Level,
+    Opening,
+    Polygon2D,
+    Room,
+    Wall,
+    query,
 )
 from archit_app.query import ElementQuery
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 def _make_level() -> Level:
-    boundary = Polygon2D.rectangle(0, 0, 10, 8, crs=WORLD)
     r1 = Room(boundary=Polygon2D.rectangle(0, 0, 5, 4, crs=WORLD),
               name="Bedroom", program="bedroom")
     r2 = Room(boundary=Polygon2D.rectangle(5, 0, 5, 4, crs=WORLD),

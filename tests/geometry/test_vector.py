@@ -1,12 +1,11 @@
 """Tests for Vector2D and Vector3D."""
 
 import math
+
 import pytest
-import numpy as np
 
-from archit_app.geometry.crs import WORLD, SCREEN
+from archit_app.geometry.crs import SCREEN, WORLD
 from archit_app.geometry.vector import Vector2D, Vector3D
-
 
 # ---------------------------------------------------------------------------
 # Helpers

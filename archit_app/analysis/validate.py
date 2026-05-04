@@ -263,8 +263,8 @@ def _check_orphan_walls(level) -> list[Finding]:
         return out
 
     try:
-        from shapely.geometry import box as shp_box
         from shapely.geometry import Polygon as ShpPolygon
+        from shapely.geometry import box as shp_box
         from shapely.ops import unary_union
     except ImportError:
         return out

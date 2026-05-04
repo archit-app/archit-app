@@ -8,11 +8,11 @@ They transform differently from points (no translation applied).
 from __future__ import annotations
 
 import math
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
-from archit_app.geometry.crs import CoordinateSystem, CRSMismatchError, WORLD, require_same_crs
+from archit_app.geometry.crs import WORLD, CoordinateSystem, require_same_crs
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import numpy as np  # noqa: F401

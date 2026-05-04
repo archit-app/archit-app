@@ -1,8 +1,6 @@
-import math
 import pytest
 
 from archit_app import Building, Land, Setbacks, ZoningInfo
-
 
 # A roughly 100m × 60m rectangular parcel in San Francisco
 _SF_COORDS = [
@@ -65,7 +63,7 @@ def test_centroid_latlon():
 
 
 def test_from_polygon():
-    from archit_app import Polygon2D, Point2D, WORLD
+    from archit_app import WORLD, Point2D, Polygon2D
 
     pts = [Point2D(x=x, y=y) for x, y in [(0, 0), (60, 0), (60, 100), (0, 100)]]
     poly = Polygon2D(exterior=tuple(pts), crs=WORLD)
@@ -303,7 +301,7 @@ def test_building_with_site_delegates_to_land():
 
 
 def test_json_round_trip_land_with_boundary():
-    from archit_app.io.json_schema import building_to_json, building_from_json
+    from archit_app.io.json_schema import building_from_json, building_to_json
 
     land = (
         Land.from_latlon(_SF_COORDS, address="Round-trip St", elevation_m=5.0)
@@ -327,7 +325,7 @@ def test_json_round_trip_land_with_boundary():
 
 
 def test_json_round_trip_minimal_land():
-    from archit_app.io.json_schema import building_to_json, building_from_json
+    from archit_app.io.json_schema import building_from_json, building_to_json
 
     land = Land.minimal(north_angle=45.0, address="Minimal Site")
     building = Building().with_land(land)
@@ -344,6 +342,7 @@ def test_json_round_trip_minimal_land():
 def test_json_backward_compat_legacy_site_key():
     """Buildings serialised with the old ``site`` key should deserialise correctly."""
     import json
+
     from archit_app.io.json_schema import building_from_json
 
     legacy_json = json.dumps({
@@ -364,7 +363,7 @@ def test_json_backward_compat_legacy_site_key():
 
 
 def test_json_no_land_gives_none():
-    from archit_app.io.json_schema import building_to_json, building_from_json
+    from archit_app.io.json_schema import building_from_json, building_to_json
 
     building = Building().with_metadata(name="No Site")
     restored = building_from_json(building_to_json(building))

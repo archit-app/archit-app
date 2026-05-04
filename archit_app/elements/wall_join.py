@@ -19,7 +19,7 @@ join_walls(walls)          → apply miter_join to all pairs that share an endpo
 from __future__ import annotations
 
 import math
-from typing import Any, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Sequence
 
 from archit_app.elements.wall import Wall
 from archit_app.geometry.polygon import Polygon2D

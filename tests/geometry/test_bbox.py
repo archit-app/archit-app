@@ -2,10 +2,9 @@
 
 import pytest
 
-from archit_app.geometry.crs import WORLD, SCREEN
-from archit_app.geometry.point import Point2D, Point3D
 from archit_app.geometry.bbox import BoundingBox2D, BoundingBox3D
-
+from archit_app.geometry.crs import SCREEN, WORLD
+from archit_app.geometry.point import Point2D, Point3D
 
 # ---------------------------------------------------------------------------
 # Helpers
